@@ -138,6 +138,23 @@ Project-management/
 
 ---
 
+## Testing
+
+Automated API integration test suite using Node's built-in test runner (`node:test`) and Supertest:
+
+```bash
+npm test
+```
+
+The test suite runs against an isolated in-memory SQLite database and validates:
+- Public health check and Swagger docs availability
+- Authentication, token verification, and password validation
+- Role-based permissions (Admin, Project Manager, Team Member)
+- Project & Task CRUD flows, status transitions, and cascade deletes
+- Audit logging and task comments/attachments
+
+---
+
 ## Available Scripts
 
 | Command | Description |
@@ -146,3 +163,4 @@ Project-management/
 | `npm run build` | Builds the React frontend bundle into `client/dist` |
 | `npm run start` | Runs the server in production mode |
 | `npm run seed` | Re-seeds initial demo data into the SQLite database |
+| `npm test` | Runs the API integration test suite |
