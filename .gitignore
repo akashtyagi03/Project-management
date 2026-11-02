@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.local
+server/data/*.db
+server/data/*.db-*
+server/uploads/*
+!server/uploads/.gitkeep
+!server/data/.gitkeep
+.DS_Store
+coverage/
+npm-debug.log*
+_backup_deliverables/
+.env.example/
