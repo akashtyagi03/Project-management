@@ -11,4 +11,3 @@ server/uploads/*
 coverage/
 npm-debug.log*
 _backup_deliverables/
-.env.example/
