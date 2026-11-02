@@ -1,0 +1,1230 @@
+openapi: 3.0.3
+info:
+  title: Groundwork API
+  version: 1.0.0
+  description: |
+    REST API for Groundwork, a small project and task management workspace.
+
+    Sign in through `POST /api/auth/login`, then send the returned token as
+    `Authorization: Bearer <token>`. Most endpoints are scoped to projects the
+    current user can access. Admins can see everything.
+
+    Demo accounts are created automatically when the database is empty:
+    `admin@groundwork.dev / Admin@123`, `priya@groundwork.dev / Manager@123`,
+    and `rohan@groundwork.dev / Member@123`.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+tags:
+  - name: Auth
+  - name: Users
+  - name: Projects
+  - name: Tasks
+  - name: Comments
+  - name: Attachments
+  - name: Dashboard
+  - name: Audit
+
+paths:
+  /api/health:
+    get:
+      tags: [Auth]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: groundwork-api
+                  time:
+                    type: string
+                    format: date-time
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Create an account
+      description: New accounts are team members. The first account on an empty database becomes an admin.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 80
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Incorrect email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the signed-in user
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/users:
+    get:
+      tags: [Users]
+      summary: List users
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [ADMIN, PROJECT_MANAGER, TEAM_MEMBER]
+      responses:
+        '200':
+          description: Up to 100 users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/users/{id}/role:
+    patch:
+      tags: [Users]
+      summary: Change a user's role
+      description: Admin only. You cannot change your own role.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [ADMIN, PROJECT_MANAGER, TEAM_MEMBER]
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List accessible projects
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [all, managed, member]
+            default: all
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [deadline, recent, name]
+            default: deadline
+      responses:
+        '200':
+          description: Paginated projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectSummary'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Projects]
+      summary: Create a project
+      description: Admins and project managers only. Managers are assigned as the project manager.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 120
+                description:
+                  type: string
+                  maxLength: 5000
+                deadline:
+                  type: string
+                  format: date
+                  nullable: true
+                managerId:
+                  type: integer
+                  description: Admin only. Defaults to the current user.
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProjectDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Get a project with members and task stats
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProjectDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Projects]
+      summary: Update a project
+      description: The project manager or an admin. Only admins can reassign the manager.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 120
+                description:
+                  type: string
+                  maxLength: 5000
+                deadline:
+                  type: string
+                  format: date
+                  nullable: true
+                managerId:
+                  type: integer
+      responses:
+        '200':
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProjectDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Projects]
+      summary: Delete a project
+      description: Deletes its tasks, comments, and attachments as well.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '204':
+          description: Project deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/projects/{id}/members:
+    post:
+      tags: [Projects]
+      summary: Add a member to a project
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: integer
+      responses:
+        '201':
+          description: Member added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Person is already on the project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/projects/{id}/members/{userId}:
+    delete:
+      tags: [Projects]
+      summary: Remove a project member
+      description: The manager cannot be removed and members with open tasks must be reassigned first.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Member removed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: List accessible tasks
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [TODO, IN_PROGRESS, COMPLETED]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH]
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+        - name: assigneeId
+          in: query
+          description: Numeric user id, or `me`.
+          schema:
+            type: string
+        - name: overdue
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [due_date, created, priority]
+            default: due_date
+      responses:
+        '200':
+          description: Paginated tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Tasks]
+      summary: Create a task
+      description: The project manager or an admin. Assignees must be on the project team.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, title]
+              properties:
+                projectId:
+                  type: integer
+                title:
+                  type: string
+                  minLength: 2
+                  maxLength: 160
+                description:
+                  type: string
+                  maxLength: 5000
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, COMPLETED]
+                  default: TODO
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH]
+                  default: MEDIUM
+                dueDate:
+                  type: string
+                  format: date
+                  nullable: true
+                assignedTo:
+                  type: integer
+                  nullable: true
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: Get a task
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Task'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Tasks]
+      summary: Update a task
+      description: Managers can update every field. Assignees can update status only.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 2
+                  maxLength: 160
+                description:
+                  type: string
+                  maxLength: 5000
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, COMPLETED]
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH]
+                dueDate:
+                  type: string
+                  format: date
+                  nullable: true
+                assignedTo:
+                  type: integer
+                  nullable: true
+      responses:
+        '200':
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Tasks]
+      summary: Delete a task
+      description: The project manager or an admin.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '204':
+          description: Task deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tasks/{taskId}/comments:
+    get:
+      tags: [Comments]
+      summary: List comments
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+      responses:
+        '200':
+          description: Comments in chronological order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Comments]
+      summary: Add a comment
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Comment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/tasks/{taskId}/comments/{commentId}:
+    delete:
+      tags: [Comments]
+      summary: Delete a comment
+      description: Authors can delete their own comments; project managers can delete any.
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Comment deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tasks/{taskId}/attachments:
+    get:
+      tags: [Attachments]
+      summary: List attachments
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+      responses:
+        '200':
+          description: Attachments, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Attachment'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Attachments]
+      summary: Upload an attachment
+      description: Maximum 10 MB. Images, PDFs, Office files, text files, CSV, Markdown, and zip are allowed.
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Attachment uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Attachment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/tasks/{taskId}/attachments/{attachmentId}/download:
+    get:
+      tags: [Attachments]
+      summary: Download an attachment
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '200':
+          description: File contents
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tasks/{taskId}/attachments/{attachmentId}:
+    delete:
+      tags: [Attachments]
+      summary: Delete an attachment
+      description: Uploaders can remove their own files; project managers can remove any.
+      parameters:
+        - $ref: '#/components/parameters/TaskIdParam'
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '204':
+          description: Attachment deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard data
+      description: Counts, project progress, upcoming and overdue work, and team workload, scoped to accessible projects.
+      responses:
+        '200':
+          description: Dashboard payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      projects:
+                        type: integer
+                      tasks:
+                        type: integer
+                      completed:
+                        type: integer
+                      pending:
+                        type: integer
+                      overdue:
+                        type: integer
+                      due_this_week:
+                        type: integer
+                      completion_rate:
+                        type: integer
+                  status_breakdown:
+                    type: object
+                    properties:
+                      todo:
+                        type: integer
+                      in_progress:
+                        type: integer
+                      completed:
+                        type: integer
+                  priority_breakdown:
+                    type: object
+                    properties:
+                      low:
+                        type: integer
+                      medium:
+                        type: integer
+                      high:
+                        type: integer
+                  projects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectSummary'
+                  upcoming:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskBrief'
+                  overdue:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskBrief'
+                  team:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        name:
+                          type: string
+                        role:
+                          type: string
+                        assigned:
+                          type: integer
+                        completed:
+                          type: integer
+                        completion_rate:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/audit:
+    get:
+      tags: [Audit]
+      summary: List audit entries
+      description: Admin only.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - name: entityType
+          in: query
+          schema:
+            type: string
+            enum: [project, task, user]
+      responses:
+        '200':
+          description: Paginated audit log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    Search:
+      name: q
+      in: query
+      description: Free-text search.
+      schema:
+        type: string
+        maxLength: 100
+    ProjectId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    TaskId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    TaskIdParam:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: integer
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    AttachmentId:
+      name: attachmentId
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or expired token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          nullable: true
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, PROJECT_MANAGER, TEAM_MEMBER]
+        created_at:
+          type: string
+          format: date-time
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    ProjectSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        manager_id:
+          type: integer
+        manager_name:
+          type: string
+        manager_email:
+          type: string
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        created_by:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        task_count:
+          type: integer
+        completed_tasks:
+          type: integer
+        member_count:
+          type: integer
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProjectSummary'
+        - type: object
+          properties:
+            in_progress_tasks:
+              type: integer
+            todo_tasks:
+              type: integer
+            overdue_tasks:
+              type: integer
+            members:
+              type: array
+              items:
+                $ref: '#/components/schemas/User'
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        project_id:
+          type: integer
+        project_name:
+          type: string
+        project_manager_id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, COMPLETED]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        assigned_to:
+          type: integer
+          nullable: true
+        assignee_name:
+          type: string
+          nullable: true
+        assignee_email:
+          type: string
+          nullable: true
+        created_by:
+          type: integer
+          nullable: true
+        creator_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        comments_count:
+          type: integer
+        attachments_count:
+          type: integer
+
+    TaskBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, COMPLETED]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        project_id:
+          type: integer
+        project_name:
+          type: string
+        assignee_name:
+          type: string
+          nullable: true
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        task_id:
+          type: integer
+        user_id:
+          type: integer
+        user_name:
+          type: string
+        user_role:
+          type: string
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: integer
+        task_id:
+          type: integer
+        uploaded_by:
+          type: integer
+          nullable: true
+        uploaded_by_name:
+          type: string
+          nullable: true
+        original_name:
+          type: string
+        stored_name:
+          type: string
+        mime_type:
+          type: string
+        size:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        download_url:
+          type: string
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        actor_id:
+          type: integer
+          nullable: true
+        actor_name:
+          type: string
+          nullable: true
+        actor_email:
+          type: string
+          nullable: true
+        action:
+          type: string
+          example: task.updated
+        entity_type:
+          type: string
+          enum: [project, task, user]
+        entity_id:
+          type: integer
+          nullable: true
+        details:
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []

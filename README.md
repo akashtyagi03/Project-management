@@ -128,6 +128,16 @@ Project-management/
 
 ---
 
+## Documentation & Deliverables
+
+- **Interactive API Documentation (Swagger UI)**: Available at `http://localhost:4000/api/docs` when the server is running.
+- **OpenAPI 3.0 Specification**: [`docs/openapi.yaml`](docs/openapi.yaml)
+- **Postman Collection**: [`docs/postman_collection.json`](docs/postman_collection.json)
+- **Database Schema**: [`docs/schema.md`](docs/schema.md)
+- **Entity Relationship Diagram (ERD)**: [`docs/ERD.md`](docs/ERD.md)
+
+---
+
 ## Available Scripts
 
 | Command | Description |

@@ -1,15 +1,18 @@
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const yaml = require('yaml');
+const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
 const { apiNotFound, errorHandler } = require('./middleware/error');
 
 const app = express();
 
 // Security and utility middleware
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(
   cors({
     origin: config.clientOrigins,
@@ -40,12 +43,25 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/audit', require('./routes/audit'));
 
+// Interactive Swagger API documentation
+const openApiPath = path.resolve(__dirname, '../../docs/openapi.yaml');
+if (fs.existsSync(openApiPath)) {
+  const openApiDocument = yaml.parse(fs.readFileSync(openApiPath, 'utf8'));
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openApiDocument, {
+      customSiteTitle: 'Project Management API Docs',
+      swaggerOptions: { persistAuthorization: true },
+    })
+  );
+}
+
 // 404 handler for API routes
 app.use('/api', apiNotFound);
 
 // Serve static build in production if available
 const clientDist = path.resolve(__dirname, '../../client/dist');
-const fs = require('fs');
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => {
@@ -56,6 +72,7 @@ if (fs.existsSync(clientDist)) {
     res.json({
       name: 'Project Management API',
       message: 'API is running. Start the frontend client with npm run dev.',
+      docs: '/api/docs',
     });
   });
 }
