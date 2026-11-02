@@ -155,6 +155,20 @@ The test suite runs against an isolated in-memory SQLite database and validates:
 
 ---
 
+## Docker Support
+
+Run the entire application in a containerized environment using Docker and Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+- Runs both the client build and the API on **[http://localhost:4000](http://localhost:4000)**.
+- Uses named Docker volumes (`groundwork-data` and `groundwork-uploads`) for persistent SQLite storage and uploaded attachments across container restarts.
+- Includes container healthcheck monitoring `/api/health`.
+
+---
+
 ## Available Scripts
 
 | Command | Description |

@@ -1,0 +1,33 @@
+services:
+  app:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-before-deploying}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:4000}
+      DB_PATH: /app/data/groundwork.db
+      UPLOADS_DIR: /app/uploads
+      SEED_DEMO: ${SEED_DEMO:-true}
+    volumes:
+      - groundwork-data:/app/data
+      - groundwork-uploads:/app/uploads
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:4000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  groundwork-data:
+  groundwork-uploads:
