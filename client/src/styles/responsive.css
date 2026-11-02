@@ -1,0 +1,785 @@
+@media (max-width: 1400px) {
+  .task-table__head,
+  .task-row {
+    grid-template-columns: minmax(150px, 1.7fr) 108px 92px minmax(110px, 1fr) 104px;
+  }
+
+  .task-table__head > :last-child,
+  .task-row .task-row__counts {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .page-container {
+    padding: 32px 28px 55px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .team-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .projects-page .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-progress-row {
+    grid-template-columns: minmax(150px, 1.5fr) minmax(110px, 1fr) 115px;
+  }
+
+  .project-progress-row__manager {
+    display: none;
+  }
+
+  .project-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .project-sidebar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-hero {
+    padding: 24px;
+  }
+
+  .task-board {
+    grid-template-columns: 1fr;
+  }
+
+  .board-column__cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 225px;
+  }
+
+  .sidebar {
+    padding-inline: 11px;
+  }
+
+  .page-container {
+    padding: 28px 24px 50px;
+  }
+
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-aside {
+    display: none;
+  }
+
+  .auth-main {
+    padding: 38px 28px;
+  }
+
+  .auth-mobile-brand {
+    display: block;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-health__body {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+
+  .project-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .project-sidebar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .team-summary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 0;
+    padding: 16px 8px;
+  }
+
+  .team-summary__item:nth-child(2) {
+    border-right: 0;
+  }
+
+  .team-summary__item:nth-child(n + 3) {
+    padding-top: 11px;
+    border-top: 1px solid #efebe2;
+  }
+
+  .task-table__head {
+    display: none;
+  }
+
+  .task-row {
+    grid-template-columns: minmax(160px, 1.7fr) 110px 92px minmax(105px, 1fr) 100px;
+    padding: 12px 9px;
+  }
+
+  .task-row .task-row__counts {
+    display: none;
+  }
+
+  .task-table--personal .task-table__head {
+    display: none;
+  }
+
+  .task-row--personal {
+    grid-template-columns: minmax(190px, 2fr) 105px 92px minmax(120px, 1fr);
+  }
+
+  .audit-list__head,
+  .audit-row {
+    grid-template-columns: 116px 158px minmax(0, 1fr) 100px;
+  }
+
+  .project-hero h1 {
+    font-size: 33px;
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 18px 0 50px rgba(12, 27, 20, 0.28);
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar__close {
+    display: inline-flex;
+  }
+
+  .sidebar__profile {
+    padding-bottom: 3px;
+  }
+
+  .sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    display: block;
+    background: rgba(10, 22, 16, 0.4);
+    backdrop-filter: blur(1px);
+  }
+
+  .app-main {
+    margin-left: 0;
+  }
+
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 58px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(247, 244, 236, 0.92);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-header__menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-left: -7px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .mobile-header__menu:hover {
+    background: rgba(26, 36, 31, 0.06);
+  }
+
+  .page-container {
+    padding: 23px 19px 45px;
+  }
+
+  .page-header h1,
+  .dashboard-header h1 {
+    font-size: 32px;
+  }
+
+  .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-hero {
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .project-hero__actions {
+    width: 100%;
+  }
+
+  .project-hero h1 {
+    font-size: 30px;
+  }
+
+  .project-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .project-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-list__head {
+    display: none;
+  }
+
+  .audit-row {
+    grid-template-columns: 112px minmax(0, 1fr) 90px;
+    gap: 10px;
+    padding: 13px 14px;
+  }
+
+  .audit-row__actor {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .audit-row__time {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .audit-row__activity {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .audit-row > .badge {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .project-progress-row {
+    grid-template-columns: minmax(0, 1.5fr) 130px;
+  }
+
+  .project-progress-row__progress {
+    justify-content: flex-end;
+  }
+
+  .project-progress-row__due {
+    display: none;
+  }
+
+  .task-row {
+    grid-template-columns: minmax(170px, 1.7fr) 106px 92px minmax(100px, 1fr);
+  }
+
+  .task-row--personal {
+    grid-template-columns: minmax(180px, 2fr) 110px 92px minmax(100px, 1fr);
+  }
+
+  .task-row__assignee,
+  .task-row__counts {
+    display: none;
+  }
+
+  .task-board {
+    grid-template-columns: repeat(3, minmax(235px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 5px;
+    scroll-snap-type: x proximity;
+  }
+
+  .board-column {
+    scroll-snap-align: start;
+  }
+
+  .board-column__cards {
+    display: flex;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-header,
+  .dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .page-header__actions {
+    width: 100%;
+  }
+
+  .page-header__actions .button {
+    flex: 1;
+  }
+
+  .stats-grid {
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 15px;
+  }
+
+  .stat-card__icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .stat-card__value {
+    font-size: 24px;
+  }
+
+  .task-health__body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .health-legend {
+    width: 100%;
+  }
+
+  .project-grid,
+  .projects-page .project-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-card {
+    min-height: 0;
+    padding: 19px;
+  }
+
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filter-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 11px;
+  }
+
+  .filter-row__right {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    width: 100%;
+  }
+
+  .filter-row__right .toolbar__search {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filter-row__right .select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .task-row,
+  .task-row--personal {
+    grid-template-columns: minmax(0, 1fr) 100px;
+    row-gap: 7px;
+  }
+
+  .task-row__due,
+  .task-row--personal .task-row__due {
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-end;
+    align-self: start;
+    font-size: 9.5px;
+  }
+
+  .task-row__status {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .task-row__priority {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .task-row__assignee,
+  .task-row .task-row__counts,
+  .task-row--personal .task-row__counts {
+    display: none;
+  }
+
+  .team-card {
+    padding: 17px;
+  }
+
+  .project-hero h1 {
+    font-size: 27px;
+  }
+
+  .project-tasks {
+    padding: 16px;
+  }
+
+  .project-tasks__heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .project-tasks__view {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .task-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    padding-bottom: 11px;
+  }
+
+  .task-toolbar .toolbar__search {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-toolbar .select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .task-toolbar .select:nth-of-type(3) {
+    grid-column: 1 / -1;
+  }
+
+  .task-toolbar .text-button {
+    justify-self: start;
+  }
+
+  .project-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-row {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .audit-row > .badge {
+    display: none;
+  }
+
+  .audit-code {
+    display: none;
+  }
+
+  .project-progress-row {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
+
+  .project-progress-row__progress .progress {
+    display: none;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .toolbar__group {
+    width: 100%;
+  }
+
+  .toolbar__search {
+    min-width: 0;
+    max-width: none;
+    flex: 1;
+  }
+
+  .segmented {
+    width: 100%;
+  }
+
+  .segmented__item {
+    flex: 1;
+    text-align: center;
+  }
+
+  .task-drawer {
+    width: 100%;
+  }
+
+  .task-drawer__scroll {
+    padding: 21px 20px 35px;
+  }
+
+  .task-drawer__title h2 {
+    font-size: 24px;
+  }
+
+  .task-details-grid {
+    gap: 16px;
+  }
+
+  .toast-stack {
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+  }
+
+  .toast {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .page-container {
+    padding: 19px 15px 38px;
+  }
+
+  .auth-main {
+    padding: 26px 19px;
+    justify-content: flex-start;
+  }
+
+  .auth-card__heading h2 {
+    font-size: 29px;
+  }
+
+  .auth-shell {
+    min-height: 100dvh;
+  }
+
+  .auth-mobile-brand {
+    margin-bottom: 34px;
+  }
+
+  .page-header h1,
+  .dashboard-header h1 {
+    font-size: 29px;
+  }
+
+  .page-header p {
+    font-size: 12.5px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-card {
+    flex-direction: column;
+    gap: 9px;
+    padding: 14px;
+  }
+
+  .stat-card__hint {
+    font-size: 9.5px;
+  }
+
+  .panel__header {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .panel__header .button {
+    font-size: 9.5px;
+  }
+
+  .project-progress-row__title span {
+    max-width: 150px;
+  }
+
+  .project-progress-row {
+    grid-template-columns: minmax(0, 1fr) 54px;
+  }
+
+  .project-progress-row__progress > span {
+    width: auto;
+  }
+
+  .team-summary {
+    padding: 14px 5px;
+  }
+
+  .team-summary__item {
+    padding: 2px 12px;
+  }
+
+  .team-summary__item strong {
+    font-size: 16px;
+  }
+
+  .team-summary__item span {
+    font-size: 8.5px;
+  }
+
+  .team-summary__item svg {
+    display: none;
+  }
+
+  .project-hero {
+    padding: 18px;
+  }
+
+  .project-hero__description {
+    font-size: 12px;
+  }
+
+  .project-hero__actions {
+    flex-wrap: wrap;
+  }
+
+  .project-hero__actions .button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .project-tasks {
+    padding: 14px;
+  }
+
+  .board-column__cards {
+    display: flex;
+  }
+
+  .task-board {
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+  }
+
+  .task-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comment-form > .avatar {
+    display: none;
+  }
+
+  .drawer-section__heading {
+    align-items: flex-start;
+  }
+
+  .modal {
+    max-height: 93dvh;
+    border-radius: 15px;
+  }
+
+  .modal__header {
+    padding: 18px 17px 13px;
+  }
+
+  .modal__body {
+    padding: 17px;
+  }
+
+  .modal__footer {
+    padding: 13px 17px;
+    flex-wrap: wrap;
+  }
+
+  .modal__footer .button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid .field--full {
+    grid-column: 1;
+  }
+
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .pagination__pages {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .list-footnote {
+    text-align: left;
+  }
+}
+
+@media (max-width: 390px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card {
+    flex-direction: row;
+  }
+
+  .segmented__item {
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  .filter-chip {
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  .project-grid {
+    gap: 12px;
+  }
+
+  .project-card__footer {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
