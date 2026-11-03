@@ -46,6 +46,21 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Ensure database connection for API routes (essential for serverless environments)
+const { openDatabase } = require('./db');
+const { HttpError } = require('./utils/http');
+
+app.use('/api', async (req, _res, next) => {
+  if (req.path === '/health' || req.path === '/docs') return next();
+  try {
+    await openDatabase();
+    next();
+  } catch (error) {
+    console.error(`[DB] Connection failed for ${req.method} ${req.originalUrl}:`, error.message);
+    next(new HttpError(500, 'Database connection error', error.message));
+  }
+});
+
 // Application API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));

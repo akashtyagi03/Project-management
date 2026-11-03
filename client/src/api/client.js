@@ -46,11 +46,10 @@ async function request(path, options = {}) {
     if (response.status === 401 && token && !path.startsWith('/auth/login')) {
       window.dispatchEvent(new Event('groundwork:unauthorized'));
     }
-    throw new ApiError(
-      payload.error || 'Something went wrong. Please try again.',
-      response.status,
-      payload.details
-    );
+    const message = payload.details
+      ? `${payload.error || 'Error'}: ${payload.details}`
+      : payload.error || 'Something went wrong. Please try again.';
+    throw new ApiError(message, response.status, payload.details);
   }
 
   return payload;
