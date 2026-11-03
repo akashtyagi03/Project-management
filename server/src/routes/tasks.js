@@ -180,7 +180,10 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const projectId = validate.id(req.body.projectId, 'Project id');
+    if (!req.body.projectId) {
+      throw new HttpError(400, 'Please select or specify a project for this task');
+    }
+    const projectId = validate.id(req.body.projectId, 'Project');
     const { project } = await requireProjectManager(projectId, req.user);
 
     const title = validate.text(req.body.title, 'Task title', { min: 2, max: 160 });

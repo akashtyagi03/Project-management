@@ -1,11 +1,9 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export function Pagination({ meta, onPageChange }) {
-  if (!meta) return null;
+  if (!meta || meta.totalPages <= 1) return null;
 
-  const { page, limit, total, totalPages } = meta;
-  const from = total === 0 ? 0 : (page - 1) * limit + 1;
-  const to = Math.min(page * limit, total);
+  const { page, totalPages } = meta;
   const pages = [];
   const start = Math.max(1, Math.min(page - 1, totalPages - 2));
   const end = Math.min(totalPages, start + 2);
@@ -14,62 +12,57 @@ export function Pagination({ meta, onPageChange }) {
 
   return (
     <div className="pagination">
-      <p>
-        {total === 0 ? 'No results' : `Showing ${from}–${to} of ${total}`}
-      </p>
-      {totalPages > 1 && (
-        <div className="pagination__controls">
+      <div className="pagination__controls">
+        <button
+          type="button"
+          className="icon-button icon-button--border"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+          aria-label="Previous page"
+        >
+          <ChevronLeft size={17} />
+        </button>
+        {start > 1 && (
+          <>
+            <button type="button" className="page-button" onClick={() => onPageChange(1)}>
+              1
+            </button>
+            {start > 2 && <span className="page-ellipsis">…</span>}
+          </>
+        )}
+        {pages.map((pageNumber) => (
           <button
             type="button"
-            className="icon-button icon-button--border"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-            aria-label="Previous page"
+            key={pageNumber}
+            className={`page-button ${pageNumber === page ? 'page-button--active' : ''}`}
+            onClick={() => onPageChange(pageNumber)}
+            aria-current={pageNumber === page ? 'page' : undefined}
           >
-            <ChevronLeft size={17} />
+            {pageNumber}
           </button>
-          {start > 1 && (
-            <>
-              <button type="button" className="page-button" onClick={() => onPageChange(1)}>
-                1
-              </button>
-              {start > 2 && <span className="page-ellipsis">…</span>}
-            </>
-          )}
-          {pages.map((pageNumber) => (
+        ))}
+        {end < totalPages && (
+          <>
+            {end < totalPages - 1 && <span className="page-ellipsis">…</span>}
             <button
               type="button"
-              key={pageNumber}
-              className={`page-button ${pageNumber === page ? 'page-button--active' : ''}`}
-              onClick={() => onPageChange(pageNumber)}
-              aria-current={pageNumber === page ? 'page' : undefined}
+              className="page-button"
+              onClick={() => onPageChange(totalPages)}
             >
-              {pageNumber}
+              {totalPages}
             </button>
-          ))}
-          {end < totalPages && (
-            <>
-              {end < totalPages - 1 && <span className="page-ellipsis">…</span>}
-              <button
-                type="button"
-                className="page-button"
-                onClick={() => onPageChange(totalPages)}
-              >
-                {totalPages}
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="icon-button icon-button--border"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page >= totalPages}
-            aria-label="Next page"
-          >
-            <ChevronRight size={17} />
-          </button>
-        </div>
-      )}
+          </>
+        )}
+        <button
+          type="button"
+          className="icon-button icon-button--border"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages}
+          aria-label="Next page"
+        >
+          <ChevronRight size={17} />
+        </button>
+      </div>
     </div>
   );
 }

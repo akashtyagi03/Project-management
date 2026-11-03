@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  AlertTriangle,
-  CalendarDays,
-  CheckCircle2,
-  ListChecks,
-  MessageSquare,
-  Paperclip,
-  Search,
-} from 'lucide-react';
+import { AlertTriangle, CalendarDays, ListChecks, Paperclip, Search } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -20,15 +12,7 @@ import { PriorityBadge, StatusBadge } from '../components/Badge';
 import { TaskDrawer } from '../components/TaskDrawer';
 import { TaskFormModal } from '../components/TaskFormModal';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { dueInfo, pluralize } from '../utils/format';
-
-const QUICK_FILTERS = [
-  ['all', 'All'],
-  ['TODO', 'To do'],
-  ['IN_PROGRESS', 'In progress'],
-  ['COMPLETED', 'Completed'],
-  ['overdue', 'Overdue'],
-];
+import { dueInfo } from '../utils/format';
 
 export default function MyTasksPage() {
   const { user } = useAuth();
@@ -39,9 +23,6 @@ export default function MyTasksPage() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query);
-  const [quickFilter, setQuickFilter] = useState('all');
-  const [priority, setPriority] = useState('');
-  const [sort, setSort] = useState('due_date');
   const [page, setPage] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -52,7 +33,7 @@ export default function MyTasksPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQuery, quickFilter, priority, sort]);
+  }, [debouncedQuery]);
 
   useEffect(() => {
     let active = true;
@@ -60,15 +41,9 @@ export default function MyTasksPage() {
       assigneeId: 'me',
       page: String(page),
       limit: '10',
-      sort,
+      sort: 'due_date',
     });
     if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
-    if (priority) params.set('priority', priority);
-    if (quickFilter === 'overdue') {
-      params.set('overdue', 'true');
-    } else if (quickFilter !== 'all') {
-      params.set('status', quickFilter);
-    }
 
     setLoading(true);
     setError('');
@@ -91,7 +66,7 @@ export default function MyTasksPage() {
     return () => {
       active = false;
     };
-  }, [page, debouncedQuery, quickFilter, priority, sort, refreshKey, toast]);
+  }, [page, debouncedQuery, refreshKey, toast]);
 
   const refresh = () => setRefreshKey((value) => value + 1);
 
@@ -123,18 +98,14 @@ export default function MyTasksPage() {
 
   const clearFilters = () => {
     setQuery('');
-    setQuickFilter('all');
-    setPriority('');
   };
 
-  const filtered = debouncedQuery || quickFilter !== 'all' || priority;
+  const filtered = Boolean(debouncedQuery.trim());
 
   return (
     <div className="page my-tasks-page">
       <PageHeader
-        eyebrow="My tasks"
         title="What’s on your plate"
-        description="Your assigned work across every project, with the noise turned down."
         actions={
           <Link to="/projects" className="button button--secondary">
             <ListChecks size={16} /> Browse projects
@@ -143,53 +114,15 @@ export default function MyTasksPage() {
       />
 
       <div className="filter-row">
-        <div className="filter-chips" role="group" aria-label="Quick filters">
-          {QUICK_FILTERS.map(([value, label]) => (
-            <button
-              type="button"
-              key={value}
-              className={`filter-chip ${quickFilter === value ? 'filter-chip--active' : ''}`}
-              onClick={() => setQuickFilter(value)}
-            >
-              {value === 'overdue' && <AlertTriangle size={14} />}
-              {value === 'COMPLETED' && <CheckCircle2 size={14} />}
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="filter-row__right">
-          <div className="toolbar__search toolbar__search--small">
-            <Search size={16} />
-            <input
-              type="search"
-              placeholder="Search my tasks"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="Search my tasks"
-            />
-          </div>
-          <select
-            className="select select--compact"
-            value={priority}
-            onChange={(event) => setPriority(event.target.value)}
-            aria-label="Filter by priority"
-          >
-            <option value="">All priorities</option>
-            <option value="HIGH">High priority</option>
-            <option value="MEDIUM">Medium priority</option>
-            <option value="LOW">Low priority</option>
-          </select>
-          <select
-            className="select select--compact"
-            value={sort}
-            onChange={(event) => setSort(event.target.value)}
-            aria-label="Sort tasks"
-          >
-            <option value="due_date">Due date</option>
-            <option value="priority">Priority</option>
-            <option value="created">Newest</option>
-          </select>
+        <div className="toolbar__search toolbar__search--small">
+          <Search size={16} />
+          <input
+            type="search"
+            placeholder="Search my tasks"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label="Search my tasks"
+          />
         </div>
       </div>
 
@@ -267,21 +200,17 @@ export default function MyTasksPage() {
                     <CalendarDays size={14} /> {due.label}
                   </div>
                   <div className="task-row__counts">
-                    <span title={`${task.comments_count} comments`}>
-                      <MessageSquare size={14} /> {task.comments_count}
-                    </span>
-                    <span title={`${task.attachments_count} attachments`}>
-                      <Paperclip size={14} /> {task.attachments_count}
-                    </span>
+                    {task.attachments_count > 0 && (
+                      <span title={`${task.attachments_count} attachments`}>
+                        <Paperclip size={14} /> {task.attachments_count}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
           <Pagination meta={meta} onPageChange={setPage} />
-          <p className="list-footnote">
-            {meta ? `${pluralize(meta.total, 'task')} assigned to ${user.name.split(' ')[0]}` : ''}
-          </p>
         </>
       )}
 

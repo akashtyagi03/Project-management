@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'groundwork-test-uploads-'));
 
 process.env.NODE_ENV = 'test';
-process.env.DB_PATH = ':memory:';
+process.env.MONGODB_URI = process.env.MONGODB_URI_TEST || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/project_management_test';
 process.env.UPLOADS_DIR = uploadsDir;
 process.env.SEED_DEMO = 'true';
 process.env.JWT_SECRET = 'groundwork-test-secret';
@@ -36,10 +36,22 @@ before(async () => {
   tokens.manager = await login('priya@groundwork.dev', 'Manager@123');
   tokens.member = await login('rohan@groundwork.dev', 'Member@123');
   tokens.otherMember = await login('neha@groundwork.dev', 'Member@123');
+
+  const [resAdmin, resManager, resMember, resOther] = await Promise.all([
+    request(app).get('/api/auth/me').set(auth(tokens.admin)),
+    request(app).get('/api/auth/me').set(auth(tokens.manager)),
+    request(app).get('/api/auth/me').set(auth(tokens.member)),
+    request(app).get('/api/auth/me').set(auth(tokens.otherMember)),
+  ]);
+
+  tokens.adminUser = resAdmin.body.user;
+  tokens.managerUser = resManager.body.user;
+  tokens.memberUser = resMember.body.user;
+  tokens.otherMemberUser = resOther.body.user;
 });
 
-after(() => {
-  closeDatabase();
+after(async () => {
+  await closeDatabase();
   fs.rmSync(uploadsDir, { recursive: true, force: true });
 });
 
@@ -141,14 +153,14 @@ test('dashboard and task filters validate input', async () => {
 
 test('admins can change roles but cannot change their own', async () => {
   const selfChange = await request(app)
-    .patch('/api/users/1/role')
+    .patch(`/api/users/${tokens.adminUser.id}/role`)
     .set(auth(tokens.admin))
     .send({ role: 'PROJECT_MANAGER' });
 
   assert.equal(selfChange.status, 400);
 
   const changed = await request(app)
-    .patch('/api/users/6/role')
+    .patch(`/api/users/${tokens.otherMemberUser.id}/role`)
     .set(auth(tokens.admin))
     .send({ role: 'PROJECT_MANAGER' });
 
@@ -156,7 +168,7 @@ test('admins can change roles but cannot change their own', async () => {
   assert.equal(changed.body.data.role, 'PROJECT_MANAGER');
 
   await request(app)
-    .patch('/api/users/6/role')
+    .patch(`/api/users/${tokens.otherMemberUser.id}/role`)
     .set(auth(tokens.admin))
     .send({ role: 'TEAM_MEMBER' });
 });
@@ -179,7 +191,7 @@ describe('project and task workflow', () => {
 
     assert.equal(response.status, 201);
     projectId = response.body.data.id;
-    assert.equal(response.body.data.manager_id, 2);
+    assert.equal(response.body.data.manager_id, tokens.managerUser.id);
     assert.equal(response.body.data.progress, 0);
   });
 
@@ -211,7 +223,7 @@ describe('project and task workflow', () => {
     const added = await request(app)
       .post(`/api/projects/${projectId}/members`)
       .set(auth(tokens.manager))
-      .send({ userId: 4 });
+      .send({ userId: tokens.memberUser.id });
 
     assert.equal(added.status, 201);
     assert.equal(added.body.data.name, 'Rohan Iyer');
@@ -219,7 +231,7 @@ describe('project and task workflow', () => {
     const duplicate = await request(app)
       .post(`/api/projects/${projectId}/members`)
       .set(auth(tokens.manager))
-      .send({ userId: 4 });
+      .send({ userId: tokens.memberUser.id });
 
     assert.equal(duplicate.status, 409);
   });
@@ -231,7 +243,7 @@ describe('project and task workflow', () => {
       .send({
         projectId,
         title: 'Assigned to an outsider',
-        assignedTo: 5,
+        assignedTo: tokens.otherMemberUser.id,
         dueDate: '2026-12-01',
       });
 
@@ -250,7 +262,7 @@ describe('project and task workflow', () => {
         status: 'TODO',
         priority: 'HIGH',
         dueDate: '2026-12-01',
-        assignedTo: 4,
+        assignedTo: tokens.memberUser.id,
       });
 
     assert.equal(response.status, 201);

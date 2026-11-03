@@ -77,16 +77,12 @@ export default function LoginPage() {
           <Logo light />
         </div>
         <div className="auth-aside__copy">
-          <span className="auth-kicker">Project workspace</span>
           <h1>Keep the work moving, together.</h1>
           <p>
             Projects, tasks, and the decisions around them — in one calm, shared space.
           </p>
         </div>
         <AuthPreview />
-        <p className="auth-aside__footnote">
-          Built for teams that would rather ship than chase status updates.
-        </p>
       </aside>
 
       <main className="auth-main">
@@ -115,7 +111,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@company.com"
+                placeholder="enter email"
                 autoComplete="email"
                 autoFocus
               />
@@ -128,7 +124,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Your password"
+                  placeholder="enter password"
                   autoComplete="current-password"
                 />
                 <button
@@ -178,8 +174,6 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-
-        <p className="auth-legal">Groundwork · Demo project workspace</p>
       </main>
     </div>
   );

@@ -20,40 +20,37 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Try again in a few minutes.' },
 });
 
-router.post(
-  '/register',
-  authLimiter,
-  asyncHandler(async (req, res) => {
-    const name = validate.text(req.body.name, 'Name', { min: 2, max: 80 });
-    const email = validate.email(req.body.email);
-    const password = validate.password(req.body.password);
+router.post('/register', authLimiter, asyncHandler(async (req, res) => {
+  const name = validate.text(req.body.name, 'Name', { min: 2, max: 80 });
+  const email = validate.email(req.body.email);
+  const password = validate.password(req.body.password);
 
-    const existing = await User.findOne({ email });
-    if (existing) {
-      throw new HttpError(409, 'An account with that email already exists');
-    }
+  const existing = await User.findOne({ email });
+  if (existing) {
+    throw new HttpError(409, 'An account with that email already exists');
+  }
 
-    const count = await User.countDocuments();
-    const role = count === 0 ? 'ADMIN' : 'TEAM_MEMBER';
-    const passwordHash = await bcrypt.hash(password, 10);
+  const count = await User.countDocuments();
+  const role = count === 0 ? 'ADMIN' : 'TEAM_MEMBER';
+  const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await User.create({
-      name,
-      email,
-      password_hash: passwordHash,
-      role,
-    });
+  const user = await User.create({
+    name,
+    email,
+    password_hash: passwordHash,
+    role,
+  });
 
-    recordAudit({
-      actorId: user._id,
-      action: 'user.registered',
-      entityType: 'user',
-      entityId: String(user._id),
-      details: { role },
-    });
+  recordAudit({
+    actorId: user._id,
+    action: 'user.registered',
+    entityType: 'user',
+    entityId: String(user._id),
+    details: { role },
+  });
 
-    res.status(201).json({ token: signToken(user), user: serializeUser(user) });
-  })
+  res.status(201).json({ token: signToken(user), user: serializeUser(user) });
+})
 );
 
 router.post(

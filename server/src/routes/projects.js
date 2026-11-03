@@ -36,7 +36,8 @@ function serializeProject(project) {
 }
 
 async function projectDetails(projectId) {
-  const project = await Project.findById(projectId)
+  const id = projectId?._id || projectId?.id || projectId;
+  const project = await Project.findById(id)
     .populate('manager_id', 'name email role')
     .populate('members', 'name email role created_at');
 

@@ -72,7 +72,7 @@ export function ProjectFormModal({ open, onClose, onSaved, project = null }) {
       description: form.description,
       deadline: form.deadline || null,
     };
-    if (isAdmin) payload.managerId = Number(form.managerId);
+    if (isAdmin && form.managerId) payload.managerId = String(form.managerId);
 
     setSubmitting(true);
     try {

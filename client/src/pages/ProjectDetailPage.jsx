@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   Columns3,
   List,
-  MessageSquare,
   Paperclip,
   Pencil,
   Plus,
@@ -83,12 +82,11 @@ function TaskRow({ task, onOpen }) {
       </div>
       <div className={`task-row__due due due--${due.tone}`}>{due.label}</div>
       <div className="task-row__counts">
-        <span title={`${task.comments_count} comments`}>
-          <MessageSquare size={14} /> {task.comments_count}
-        </span>
-        <span title={`${task.attachments_count} attachments`}>
-          <Paperclip size={14} /> {task.attachments_count}
-        </span>
+        {task.attachments_count > 0 && (
+          <span title={`${task.attachments_count} attachments`}>
+            <Paperclip size={14} /> {task.attachments_count}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -110,14 +108,13 @@ function TaskCard({ task, onOpen }) {
         ) : (
           <span className="avatar avatar--empty">?</span>
         )}
-        <span className="task-card__counts">
-          <span>
-            <MessageSquare size={13} /> {task.comments_count}
+        {task.attachments_count > 0 && (
+          <span className="task-card__counts">
+            <span>
+              <Paperclip size={13} /> {task.attachments_count}
+            </span>
           </span>
-          <span>
-            <Paperclip size={13} /> {task.attachments_count}
-          </span>
-        </span>
+        )}
       </div>
     </button>
   );
@@ -700,7 +697,7 @@ export default function ProjectDetailPage() {
         onClose={() => setTaskFormOpen(false)}
         onSaved={handleTaskSaved}
         task={editingTask}
-        projectId={Number(id)}
+        projectId={id}
         project={project}
       />
 

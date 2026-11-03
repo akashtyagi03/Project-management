@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Search, ShieldCheck, UsersRound } from 'lucide-react';
+import { AlertTriangle, Search, ShieldCheck } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -11,13 +11,6 @@ import { ProgressBar } from '../components/ProgressBar';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { formatDate, pluralize, roleLabel } from '../utils/format';
 
-const ROLE_FILTERS = [
-  ['all', 'Everyone'],
-  ['PROJECT_MANAGER', 'Project managers'],
-  ['TEAM_MEMBER', 'Team members'],
-  ['ADMIN', 'Admins'],
-];
-
 export default function TeamPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -27,7 +20,6 @@ export default function TeamPage() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query);
-  const [roleFilter, setRoleFilter] = useState('all');
   const [savingRoleFor, setSavingRoleFor] = useState(null);
 
   useEffect(() => {
@@ -62,13 +54,12 @@ export default function TeamPage() {
   }, [performance]);
 
   const filtered = users.filter((person) => {
-    const matchesRole = roleFilter === 'all' || person.role === roleFilter;
     const search = debouncedQuery.trim().toLowerCase();
-    const matchesSearch =
+    return (
       !search ||
       person.name.toLowerCase().includes(search) ||
-      person.email.toLowerCase().includes(search);
-    return matchesRole && matchesSearch;
+      person.email.toLowerCase().includes(search)
+    );
   });
 
   const counts = users.reduce(
@@ -96,7 +87,6 @@ export default function TeamPage() {
       <PageHeader
         eyebrow="Team"
         title="The people behind the work"
-        description="Roles, workload, and who’s carrying what. Admin can update access here."
       />
 
       {error && users.length === 0 ? (
@@ -115,37 +105,6 @@ export default function TeamPage() {
         </div>
       ) : (
         <>
-          <div className="team-summary">
-            <div className="team-summary__item">
-              <UsersRound size={18} />
-              <div>
-                <strong>{users.length}</strong>
-                <span>People in the workspace</span>
-              </div>
-            </div>
-            <div className="team-summary__item">
-              <span className="role-dot role-dot--pm" />
-              <div>
-                <strong>{counts.PROJECT_MANAGER || 0}</strong>
-                <span>Project managers</span>
-              </div>
-            </div>
-            <div className="team-summary__item">
-              <span className="role-dot role-dot--member" />
-              <div>
-                <strong>{counts.TEAM_MEMBER || 0}</strong>
-                <span>Team members</span>
-              </div>
-            </div>
-            <div className="team-summary__item">
-              <ShieldCheck size={18} />
-              <div>
-                <strong>{counts.ADMIN || 0}</strong>
-                <span>Admins</span>
-              </div>
-            </div>
-          </div>
-
           <div className="toolbar team-toolbar">
             <div className="toolbar__search">
               <Search size={17} />
@@ -157,35 +116,20 @@ export default function TeamPage() {
                 aria-label="Search people"
               />
             </div>
-            <div className="segmented" role="group" aria-label="Filter by role">
-              {ROLE_FILTERS.map(([value, label]) => (
-                <button
-                  type="button"
-                  key={value}
-                  className={roleFilter === value ? 'segmented__item segmented__item--active' : 'segmented__item'}
-                  onClick={() => setRoleFilter(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {filtered.length === 0 ? (
             <EmptyState
               icon={<Search size={24} />}
               title="No one matches that"
-              description="Try another name or role."
+              description="Try searching for another name or email."
               action={
                 <button
                   type="button"
                   className="button button--secondary"
-                  onClick={() => {
-                    setQuery('');
-                    setRoleFilter('all');
-                  }}
+                  onClick={() => setQuery('')}
                 >
-                  Clear filters
+                  Clear search
                 </button>
               }
             />
@@ -209,7 +153,6 @@ export default function TeamPage() {
                           {person.name}
                           {isSelf && <span className="you-tag">You</span>}
                         </h2>
-                        <span>{person.email}</span>
                       </div>
                       {!canEditRole && <RoleBadge role={person.role} />}
                     </div>
@@ -220,10 +163,6 @@ export default function TeamPage() {
                         <strong>{stats.completion_rate}%</strong>
                       </div>
                       <ProgressBar value={stats.completion_rate} />
-                      <p>
-                        {stats.completed} completed · {stats.assigned - stats.completed} open
-                        {stats.assigned === 0 ? ' · no tasks assigned' : ''}
-                      </p>
                     </div>
 
                     <div className="team-card__footer">
@@ -254,7 +193,7 @@ export default function TeamPage() {
           <p className="page-note">
             <ShieldCheck size={15} />
             {user.role === 'ADMIN'
-              ? 'Admins can change anyone’s role except their own. Role changes are recorded in the audit log.'
+              ? 'Admins can change anyone’s role except their own.'
               : `Only admins can change roles. There ${counts.ADMIN === 1 ? 'is' : 'are'} ${pluralize(counts.ADMIN || 0, 'admin')} in this workspace.`}
           </p>
         </>

@@ -2,7 +2,9 @@ const { Project, Task, User } = require('../models');
 const { HttpError } = require('./http');
 
 async function getProject(projectId) {
-  const project = await Project.findById(projectId).populate('manager_id', 'name email role');
+  const id = projectId?._id || projectId?.id || projectId;
+  if (!id) return null;
+  const project = await Project.findById(id).populate('manager_id', 'name email role');
   if (!project) return null;
   const doc = project.toJSON();
   return {
@@ -38,7 +40,8 @@ function projectAccess(project, user) {
 }
 
 async function requireProject(projectId, user) {
-  const project = await Project.findById(projectId).populate('manager_id', 'name email role');
+  const id = projectId?._id || projectId?.id || projectId;
+  const project = await Project.findById(id).populate('manager_id', 'name email role');
   if (!project) throw new HttpError(404, 'Project not found');
 
   const access = projectAccess(project, user);
@@ -64,18 +67,29 @@ async function requireProjectManager(projectId, user) {
 }
 
 async function getTask(taskId) {
-  const task = await Task.findById(taskId)
-    .populate('project_id', 'name manager_id')
+  const id = taskId?._id || taskId?.id || taskId;
+  if (!id) return null;
+
+  const task = await Task.findById(id)
+    .populate('project_id', 'name manager_id members')
     .populate('assigned_to', 'name email role')
     .populate('created_by', 'name email');
 
   if (!task) return null;
 
   const doc = task.toJSON();
+  const rawProjectId = task.project_id?._id || task.project_id?.id || task.project_id;
+  const rawAssignedTo = task.assigned_to?._id || task.assigned_to?.id || task.assigned_to;
+
   return {
     ...doc,
+    project_id: rawProjectId ? String(rawProjectId) : '',
     project_name: task.project_id ? task.project_id.name : '',
-    project_manager_id: task.project_id ? String(task.project_id.manager_id) : '',
+    project_manager_id: task.project_id
+      ? String(task.project_id.manager_id?._id || task.project_id.manager_id || '')
+      : '',
+    project_members: task.project_id?.members || [],
+    assigned_to: rawAssignedTo ? String(rawAssignedTo) : null,
     assignee_name: task.assigned_to ? task.assigned_to.name : null,
     assignee_email: task.assigned_to ? task.assigned_to.email : null,
     creator_name: task.created_by ? task.created_by.name : null,
@@ -88,14 +102,16 @@ function taskAccess(task, user) {
   }
 
   const uId = String(user.id || user._id);
-  const project = { id: task.project_id, manager_id: task.project_manager_id };
-  const access = projectAccess(project, user);
-  const isAssignee = String(task.assigned_to) === uId;
+  const rawAssignedTo = task.assigned_to?._id || task.assigned_to?.id || task.assigned_to;
+  const isAssignee = rawAssignedTo ? String(rawAssignedTo) === uId : false;
   const admin = user.role === 'ADMIN';
   const isProjectManager = String(task.project_manager_id) === uId;
+  const isProjectMember = Array.isArray(task.project_members)
+    ? task.project_members.some((m) => String(m._id || m) === uId)
+    : false;
 
   return {
-    canView: access.canView || isAssignee,
+    canView: admin || isProjectManager || isAssignee || isProjectMember,
     canManage: admin || isProjectManager,
     isAssignee,
   };

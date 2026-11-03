@@ -89,9 +89,7 @@ export default function ProjectsPage() {
   return (
     <div className="page">
       <PageHeader
-        eyebrow="Projects"
-        title="Everything in motion"
-        description="A clear view of ownership, deadlines, and how far each project has come."
+        title="Projects"
         actions={
           canCreate && (
             <button type="button" className="button button--primary" onClick={() => setFormOpen(true)}>

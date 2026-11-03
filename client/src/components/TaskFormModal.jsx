@@ -17,7 +17,14 @@ const EMPTY_FORM = {
 export function TaskFormModal({ open, onClose, onSaved, task = null, projectId, project = null }) {
   const { toast } = useToast();
   const isEdit = Boolean(task);
-  const targetProjectId = task?.project_id || projectId;
+  const targetProjectId =
+    projectId ||
+    project?.id ||
+    project?._id ||
+    task?.project_id?._id ||
+    task?.project_id?.id ||
+    task?.project_id;
+
   const [form, setForm] = useState(EMPTY_FORM);
   const [projectData, setProjectData] = useState(project?.members ? project : null);
   const [error, setError] = useState('');
@@ -64,15 +71,22 @@ export function TaskFormModal({ open, onClose, onSaved, task = null, projectId, 
       return;
     }
 
+    if (!isEdit && (!targetProjectId || targetProjectId === 'NaN' || targetProjectId === 'undefined')) {
+      setError('Could not identify the project for this task. Please refresh the page and try again.');
+      return;
+    }
+
     const payload = {
       title: form.title.trim(),
       description: form.description,
       status: form.status,
       priority: form.priority,
       dueDate: form.dueDate || null,
-      assignedTo: form.assignedTo ? Number(form.assignedTo) : null,
+      assignedTo: form.assignedTo ? String(form.assignedTo) : null,
     };
-    if (!isEdit) payload.projectId = Number(targetProjectId);
+    if (!isEdit) {
+      payload.projectId = String(targetProjectId);
+    }
 
     setSubmitting(true);
     try {

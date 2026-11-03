@@ -13,7 +13,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Avatar } from '../components/Avatar';
-import { PriorityBadge, StatusBadge } from '../components/Badge';
+import { PriorityBadge } from '../components/Badge';
 import { EmptyState } from '../components/EmptyState';
 import { ProgressBar } from '../components/ProgressBar';
 import {
@@ -130,7 +130,6 @@ export default function DashboardPage() {
         <div>
           <span className="eyebrow">{todayLabel()}</span>
           <h1>{greeting(user.name)}</h1>
-          <p>Here’s where the work stands today.</p>
         </div>
         {canCreate && (
           <Link to="/projects?new=1" className="button button--primary">
@@ -144,28 +143,24 @@ export default function DashboardPage() {
           icon={FolderKanban}
           label="Projects"
           value={summary.projects ?? 0}
-          hint="Across your workspace"
           tone="green"
         />
         <StatCard
           icon={CheckCircle2}
           label="Completed"
           value={summary.completed ?? 0}
-          hint={`${summary.completion_rate ?? 0}% of all tasks`}
           tone="teal"
         />
         <StatCard
           icon={CalendarDays}
           label="Due this week"
           value={summary.due_this_week ?? 0}
-          hint="Still open in the next 7 days"
           tone="amber"
         />
         <StatCard
           icon={AlertTriangle}
           label="Needs attention"
           value={summary.overdue ?? 0}
-          hint={summary.overdue ? 'Tasks past their due date' : 'Nothing is overdue'}
           tone="red"
         />
       </div>
@@ -175,7 +170,6 @@ export default function DashboardPage() {
           <div className="card__header">
             <div>
               <h2>Task health</h2>
-              <p>Distribution across every project you can see.</p>
             </div>
             <span className="pill">{pluralize(totalTasks, 'task')}</span>
           </div>
@@ -188,7 +182,6 @@ export default function DashboardPage() {
                   <span>complete</span>
                 </div>
               </div>
-              <span className="donut-caption">{summary.pending ?? 0} tasks still open</span>
             </div>
 
             <div className="health-legend">
@@ -236,7 +229,6 @@ export default function DashboardPage() {
           <div className="card__header">
             <div>
               <h2>Upcoming deadlines</h2>
-              <p>The next two weeks, in order.</p>
             </div>
             <Link to="/tasks" className="text-link">
               All tasks <ArrowRight size={15} />
@@ -266,7 +258,6 @@ export default function DashboardPage() {
               compact
               icon={<CalendarDays size={22} />}
               title="No deadlines in sight"
-              description="Nothing is due in the next two weeks."
             />
           ) : (
             <div className="deadline-list">
@@ -297,7 +288,6 @@ export default function DashboardPage() {
           <div className="card__header">
             <div>
               <h2>Project progress</h2>
-              <p>How each project is moving.</p>
             </div>
             <Link to="/projects" className="text-link">
               All projects <ArrowRight size={15} />
@@ -332,10 +322,6 @@ export default function DashboardPage() {
                 >
                   <div className="project-progress-row__title">
                     <strong>{project.name}</strong>
-                    <span>
-                      {project.completed_tasks} of {project.task_count} tasks ·{' '}
-                      {pluralize(project.member_count, 'person', 'people')}
-                    </span>
                   </div>
                   <div className="project-progress-row__manager">
                     <Avatar name={project.manager_name} size={26} />
@@ -359,7 +345,6 @@ export default function DashboardPage() {
           <div className="card__header">
             <div>
               <h2>Team performance</h2>
-              <p>Completed against assigned tasks.</p>
             </div>
             <Link to="/team" className="text-link">
               Team <ArrowRight size={15} />
@@ -393,11 +378,6 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
-      </div>
-
-      <div className="dashboard-footer-note">
-        <StatusBadge status="IN_PROGRESS" />
-        <span>Dashboard updates as your team works. No refresh required after a change.</span>
       </div>
     </div>
   );

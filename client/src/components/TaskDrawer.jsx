@@ -5,10 +5,8 @@ import {
   CalendarDays,
   Download,
   Flag,
-  MessageSquare,
   Paperclip,
   Pencil,
-  Send,
   Trash2,
   Upload,
   UserRound,
@@ -33,12 +31,9 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
   const { user } = useAuth();
   const { toast } = useToast();
   const [task, setTask] = useState(null);
-  const [comments, setComments] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [commentBody, setCommentBody] = useState('');
-  const [posting, setPosting] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -53,19 +48,15 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
     setLoading(true);
     setError('');
     setTask(null);
-    setComments([]);
     setAttachments([]);
-    setCommentBody('');
 
     Promise.all([
       api.get(`/tasks/${taskId}`),
-      api.get(`/tasks/${taskId}/comments`),
       api.get(`/tasks/${taskId}/attachments`),
     ])
-      .then(([taskResponse, commentsResponse, attachmentsResponse]) => {
+      .then(([taskResponse, attachmentsResponse]) => {
         if (!active) return;
         setTask(taskResponse.data);
-        setComments(commentsResponse.data);
         setAttachments(attachmentsResponse.data);
       })
       .catch((requestError) => {
@@ -107,14 +98,13 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
     task && (canManage || task.assigned_to === user.id);
   const due = task ? dueInfo(task.due_date, task.status) : null;
 
-  const refreshTaskCounts = (commentsCount, attachmentsCount) => {
+  const refreshTaskCounts = (attachmentsCount) => {
     setTask((current) =>
       current
         ? {
-            ...current,
-            comments_count: commentsCount ?? current.comments_count,
-            attachments_count: attachmentsCount ?? current.attachments_count,
-          }
+          ...current,
+          attachments_count: attachmentsCount ?? current.attachments_count,
+        }
         : current
     );
   };
@@ -135,26 +125,6 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
       toast(requestError.message, 'error');
     } finally {
       setChangingStatus(false);
-    }
-  };
-
-  const handleComment = async (event) => {
-    event.preventDefault();
-    if (!commentBody.trim()) return;
-
-    setPosting(true);
-    try {
-      const response = await api.post(`/tasks/${task.id}/comments`, {
-        body: commentBody.trim(),
-      });
-      const nextComments = [...comments, response.data];
-      setComments(nextComments);
-      setCommentBody('');
-      refreshTaskCounts(nextComments.length, null);
-    } catch (requestError) {
-      toast(requestError.message, 'error');
-    } finally {
-      setPosting(false);
     }
   };
 
@@ -209,22 +179,14 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
 
     setDeleting(true);
     try {
-      if (deleteTarget.type === 'comment') {
-        await api.delete(`/tasks/${task.id}/comments/${deleteTarget.id}`);
-        const nextComments = comments.filter((comment) => comment.id !== deleteTarget.id);
-        setComments(nextComments);
-        refreshTaskCounts(nextComments.length, null);
-        toast('Comment deleted.');
-      } else {
-        await api.delete(`/tasks/${task.id}/attachments/${deleteTarget.id}`);
-        const nextAttachments = attachments.filter(
-          (attachment) => attachment.id !== deleteTarget.id
-        );
-        setAttachments(nextAttachments);
-        refreshTaskCounts(null, nextAttachments.length);
-        toast('File removed.');
-        onChanged?.();
-      }
+      await api.delete(`/tasks/${task.id}/attachments/${deleteTarget.id}`);
+      const nextAttachments = attachments.filter(
+        (attachment) => attachment.id !== deleteTarget.id
+      );
+      setAttachments(nextAttachments);
+      refreshTaskCounts(nextAttachments.length);
+      toast('File removed.');
+      onChanged?.();
       setDeleteTarget(null);
     } catch (requestError) {
       toast(requestError.message, 'error');
@@ -304,8 +266,6 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
             <>
               <div className="task-drawer__title">
                 <div className="task-drawer__badges">
-                  <StatusBadge status={task.status} />
-                  <PriorityBadge priority={task.priority} />
                   {due?.tone === 'danger' && task.status !== 'COMPLETED' && (
                     <span className="badge badge--danger">Overdue</span>
                   )}
@@ -374,9 +334,6 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
                 ) : (
                   <p className="muted-text">No description yet.</p>
                 )}
-                <p className="task-meta-foot">
-                  Added by {task.creator_name || 'a teammate'} · {formatDateTime(task.created_at)}
-                </p>
               </section>
 
               <section className="drawer-section">
@@ -456,75 +413,7 @@ export function TaskDrawer({ taskId, onClose, onChanged, onEdit, onDeleteRequest
                 )}
               </section>
 
-              <section className="drawer-section comments-section">
-                <h3>
-                  <MessageSquare size={16} /> Comments
-                  {comments.length > 0 && <span>{comments.length}</span>}
-                </h3>
 
-                <form className="comment-form" onSubmit={handleComment}>
-                  <Avatar name={user.name} size={32} />
-                  <div className="comment-form__input">
-                    <textarea
-                      value={commentBody}
-                      onChange={(event) => setCommentBody(event.target.value)}
-                      placeholder="Add a comment or an update…"
-                      rows={2}
-                      maxLength={2000}
-                    />
-                    <div className="comment-form__footer">
-                      <span>{commentBody.length}/2000</span>
-                      <button
-                        type="submit"
-                        className="button button--primary button--small"
-                        disabled={posting || !commentBody.trim()}
-                      >
-                        <Send size={14} /> {posting ? 'Posting…' : 'Comment'}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-
-                {comments.length === 0 ? (
-                  <p className="muted-text">No comments yet. Start the conversation.</p>
-                ) : (
-                  <ul className="comment-list">
-                    {comments.map((comment) => {
-                      const canDelete =
-                        canManage || comment.user_id === user.id;
-                      return (
-                        <li className="comment-item" key={comment.id}>
-                          <Avatar name={comment.user_name} size={32} />
-                          <div className="comment-item__body">
-                            <div className="comment-item__meta">
-                              <strong>{comment.user_name}</strong>
-                              <span title={formatDateTime(comment.created_at)}>
-                                {relativeTime(comment.created_at)}
-                              </span>
-                              {canDelete && (
-                                <button
-                                  type="button"
-                                  className="comment-delete"
-                                  onClick={() =>
-                                    setDeleteTarget({
-                                      type: 'comment',
-                                      id: comment.id,
-                                      label: 'this comment',
-                                    })
-                                  }
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                            <p>{comment.body}</p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
             </>
           )}
         </div>

@@ -6,7 +6,6 @@ import {
   ListChecks,
   LogOut,
   Menu,
-  ScrollText,
   Users,
   X,
 } from 'lucide-react';
@@ -21,7 +20,6 @@ const NAV_ITEMS = [
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/tasks', label: 'My tasks', icon: ListChecks },
   { to: '/team', label: 'Team', icon: Users },
-  { to: '/audit', label: 'Audit log', icon: ScrollText, adminOnly: true },
 ];
 
 export function Layout() {
