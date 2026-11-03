@@ -1,24 +1,22 @@
-const PUBLIC_USER_FIELDS = 'id, name, email, role, created_at';
+const { User } = require('../models');
 
-function findUserById(db, userId) {
-  return db
-    .prepare(`SELECT ${PUBLIC_USER_FIELDS} FROM users WHERE id = ?`)
-    .get(userId);
+async function findUserById(userId) {
+  return User.findById(userId).select('-password_hash');
 }
 
-function findUserByEmail(db, email) {
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+async function findUserByEmail(email) {
+  return User.findOne({ email: email.toLowerCase() });
 }
 
 function serializeUser(user) {
   if (!user) return null;
   return {
-    id: user.id,
+    id: String(user._id || user.id),
     name: user.name,
     email: user.email,
     role: user.role,
-    createdAt: user.created_at,
+    createdAt: user.created_at || user.createdAt,
   };
 }
 
-module.exports = { PUBLIC_USER_FIELDS, findUserById, findUserByEmail, serializeUser };
+module.exports = { findUserById, findUserByEmail, serializeUser };

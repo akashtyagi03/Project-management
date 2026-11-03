@@ -8,7 +8,6 @@ dotenv.config({ path: path.join(repoRoot, '.env') });
 
 function resolvePath(value, fallback) {
   if (!value) return fallback;
-  if (value === ':memory:') return value;
   return path.isAbsolute(value) ? value : path.join(repoRoot, value);
 }
 
@@ -29,7 +28,10 @@ module.exports = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-  dbPath: resolvePath(process.env.DB_PATH, path.join(serverRoot, 'data', 'groundwork.db')),
+  mongoUri:
+    process.env.MONGODB_URI ||
+    process.env.MONGO_URI ||
+    'mongodb://127.0.0.1:27017/project_management',
   uploadsDir: resolvePath(process.env.UPLOADS_DIR, path.join(serverRoot, 'uploads')),
   seedDemo: process.env.SEED_DEMO !== 'false',
   maxUploadBytes: 10 * 1024 * 1024,

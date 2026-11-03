@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const { User, Project, Task, Comment, AuditLog } = require('../models');
 
 function dateFromNow(days) {
   const date = new Date();
@@ -7,177 +8,195 @@ function dateFromNow(days) {
   return date.toISOString().slice(0, 10);
 }
 
-function timestampFromNow(days, hours = 0) {
-  const date = new Date();
-  date.setUTCHours(9 + hours, 30, 0, 0);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString();
-}
-
-function seedDemoData(db) {
-  const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
+async function seedDemoData() {
+  const userCount = await User.countDocuments();
   if (userCount > 0) return false;
 
   const passwordHash = (password) => bcrypt.hashSync(password, 10);
 
-  const users = [
-    ['Aarav Mehta', 'admin@groundwork.dev', passwordHash('Admin@123'), 'ADMIN', 68],
-    ['Priya Sharma', 'priya@groundwork.dev', passwordHash('Manager@123'), 'PROJECT_MANAGER', 54],
-    ['Marcus Lee', 'marcus@groundwork.dev', passwordHash('Manager@123'), 'PROJECT_MANAGER', 51],
-    ['Rohan Iyer', 'rohan@groundwork.dev', passwordHash('Member@123'), 'TEAM_MEMBER', 47],
-    ['Neha Kulkarni', 'neha@groundwork.dev', passwordHash('Member@123'), 'TEAM_MEMBER', 41],
-    ['Daniel Cho', 'daniel@groundwork.dev', passwordHash('Member@123'), 'TEAM_MEMBER', 36],
-  ];
-
-  const insertUser = db.prepare(
-    'INSERT INTO users (name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)'
-  );
-
-  const insertProject = db.prepare(`
-    INSERT INTO projects (name, description, manager_id, deadline, created_by, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertMember = db.prepare(
-    'INSERT INTO project_members (project_id, user_id) VALUES (?, ?)'
-  );
-
-  const insertTask = db.prepare(`
-    INSERT INTO tasks
-      (project_id, title, description, status, priority, due_date, assigned_to, created_by, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertComment = db.prepare(
-    'INSERT INTO comments (task_id, user_id, body, created_at) VALUES (?, ?, ?, ?)'
-  );
-
-  const insertAudit = db.prepare(`
-    INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, details, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-
-  const seed = db.transaction(() => {
-    users.forEach((user) => {
-      insertUser.run(
-        user[0],
-        user[1],
-        user[2],
-        user[3],
-        timestampFromNow(-user[4])
-      );
-    });
-
-    const projects = [
-      {
-        name: 'Website redesign',
-        description:
-          'Rebuild the marketing site on the new design system. The current site is slow, hard to edit, and no longer reflects the product.',
-        managerId: 2,
-        deadline: dateFromNow(18),
-        createdBy: 1,
-        createdDaysAgo: 28,
-        members: [2, 4, 5, 6],
-      },
-      {
-        name: 'Mobile app v2.0',
-        description:
-          'Second major release of the mobile app: offline support, biometric login, and a cleaner task experience.',
-        managerId: 2,
-        deadline: dateFromNow(45),
-        createdBy: 1,
-        createdDaysAgo: 21,
-        members: [2, 4, 5, 6],
-      },
-      {
-        name: 'SOC 2 readiness',
-        description:
-          'Close the gaps identified in the readiness assessment and get the evidence pack ready for the auditor.',
-        managerId: 3,
-        deadline: dateFromNow(62),
-        createdBy: 3,
-        createdDaysAgo: 17,
-        members: [3, 4, 5, 6],
-      },
-      {
-        name: 'Customer onboarding revamp',
-        description:
-          'A shorter, clearer onboarding flow for new accounts. Shipped ahead of schedule last month.',
-        managerId: 2,
-        deadline: dateFromNow(-12),
-        createdBy: 2,
-        createdDaysAgo: 54,
-        members: [2, 4, 5, 6],
-      },
-    ];
-
-    projects.forEach((project) => {
-      insertProject.run(
-        project.name,
-        project.description,
-        project.managerId,
-        project.deadline,
-        project.createdBy,
-        timestampFromNow(-project.createdDaysAgo),
-        timestampFromNow(-Math.min(project.createdDaysAgo, 4))
-      );
-      const projectId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
-      project.id = projectId;
-      project.members.forEach((userId) => insertMember.run(projectId, userId));
-    });
-
-    const tasks = [
-      [1, 'Finalise homepage wireframes', 'Loose ends on the mobile breakpoints. Figma link is in the thread.', 'COMPLETED', 'HIGH', dateFromNow(-2), 4, 2],
-      [1, 'Build responsive navigation', 'Includes the compact menu under 768px and keyboard focus states.', 'IN_PROGRESS', 'HIGH', dateFromNow(3), 5, 2],
-      [1, 'Migrate case study content', 'Move the six existing case studies into the CMS and fix broken links.', 'TODO', 'MEDIUM', dateFromNow(8), 6, 2],
-      [1, 'Accessibility audit', 'Run axe across the main templates and log the issues worth fixing this cycle.', 'TODO', 'MEDIUM', dateFromNow(6), 4, 2],
-      [1, 'Set up analytics events', 'Confirm the event names with Priya before wiring anything up.', 'TODO', 'LOW', dateFromNow(12), 5, 4],
-      [2, 'Push notification service', 'Needs a retry path before we can call it production ready.', 'IN_PROGRESS', 'HIGH', dateFromNow(5), 4, 2],
-      [2, 'Offline mode for task list', 'Cache the last task list and queue mutations while offline.', 'TODO', 'HIGH', dateFromNow(10), 6, 2],
-      [2, 'App store screenshots', 'New screenshots for the six key flows, light and dark mode.', 'TODO', 'LOW', dateFromNow(15), 5, 2],
-      [2, 'Biometric login', 'Face ID and fingerprint unlock are now in the release build.', 'COMPLETED', 'MEDIUM', dateFromNow(-1), 4, 2],
-      [2, 'Release checklist', 'Final QA pass, changelog, and staged rollout plan.', 'TODO', 'MEDIUM', dateFromNow(20), 6, 2],
-      [3, 'Draft access control policy', 'First draft has been reviewed by legal. Small changes requested.', 'COMPLETED', 'HIGH', dateFromNow(-4), 5, 3],
-      [3, 'Vendor risk register', 'Still waiting on two vendor questionnaires. Everything else is in.', 'IN_PROGRESS', 'MEDIUM', dateFromNow(7), 6, 3],
-      [3, 'Incident response tabletop', 'Reschedule with the on-call group. This one slipped.', 'TODO', 'HIGH', dateFromNow(-1), 4, 3],
-      [3, 'Employee security training', 'Target is 100% completion before the evidence pack is submitted.', 'TODO', 'LOW', dateFromNow(21), 5, 3],
-      [3, 'Collect evidence for CC6', 'Pull the logs and screenshots for the CC6 controls into the shared folder.', 'IN_PROGRESS', 'MEDIUM', dateFromNow(14), 6, 3],
-      [4, 'Map current onboarding flow', 'Interview notes and the current journey map are in the project folder.', 'COMPLETED', 'MEDIUM', dateFromNow(-20), 5, 2],
-      [4, 'Write welcome email sequence', 'Three emails: welcome, first project, first invite.', 'COMPLETED', 'LOW', dateFromNow(-16), 6, 2],
-      [4, 'Ship in-app checklist', 'Live for all new accounts since the release.', 'COMPLETED', 'HIGH', dateFromNow(-14), 4, 2],
-    ];
-
-    tasks.forEach((task, index) => {
-      const createdDaysAgo = Math.max(1, 15 - Math.floor(index / 2));
-      insertTask.run(
-        task[0],
-        task[1],
-        task[2],
-        task[3],
-        task[4],
-        task[5],
-        task[6],
-        task[7],
-        timestampFromNow(-createdDaysAgo, index % 4),
-        timestampFromNow(-Math.floor(createdDaysAgo / 3), index % 3)
-      );
-    });
-
-    insertComment.run(1, 2, 'Wireframes look good. Let us lock the content before the next review.', timestampFromNow(-3, 1));
-    insertComment.run(1, 4, 'Done. The only open question is whether we keep the customer logos on mobile.', timestampFromNow(-2, 2));
-    insertComment.run(2, 5, 'Desktop nav is done. Working through the keyboard states now.', timestampFromNow(-1, 1));
-    insertComment.run(13, 3, 'This needs to happen before the next audit checkpoint. I will send a new invite.', timestampFromNow(0, 1));
-    insertComment.run(9, 2, 'Merged and tested on both devices. Nice work.', timestampFromNow(-1, 3));
-
-    insertAudit.run(1, 'project.created', 'project', 1, JSON.stringify({ name: 'Website redesign' }), timestampFromNow(-28));
-    insertAudit.run(1, 'task.created', 'task', 1, JSON.stringify({ title: 'Finalise homepage wireframes' }), timestampFromNow(-14));
-    insertAudit.run(3, 'project.created', 'project', 3, JSON.stringify({ name: 'SOC 2 readiness' }), timestampFromNow(-17));
-    insertAudit.run(4, 'task.updated', 'task', 9, JSON.stringify({ title: 'Biometric login', status: 'COMPLETED' }), timestampFromNow(-1));
-    insertAudit.run(1, 'member.added', 'project', 1, JSON.stringify({ name: 'Daniel Cho' }), timestampFromNow(-10));
-    insertAudit.run(1, 'user.role_updated', 'user', 3, JSON.stringify({ name: 'Marcus Lee', from: 'TEAM_MEMBER', to: 'PROJECT_MANAGER' }), timestampFromNow(-9));
+  // 1. Create Users
+  const aarav = await User.create({
+    name: 'Aarav Mehta',
+    email: 'admin@groundwork.dev',
+    password_hash: passwordHash('Admin@123'),
+    role: 'ADMIN',
   });
 
-  seed();
+  const priya = await User.create({
+    name: 'Priya Sharma',
+    email: 'priya@groundwork.dev',
+    password_hash: passwordHash('Manager@123'),
+    role: 'PROJECT_MANAGER',
+  });
+
+  const marcus = await User.create({
+    name: 'Marcus Lee',
+    email: 'marcus@groundwork.dev',
+    password_hash: passwordHash('Manager@123'),
+    role: 'PROJECT_MANAGER',
+  });
+
+  const rohan = await User.create({
+    name: 'Rohan Iyer',
+    email: 'rohan@groundwork.dev',
+    password_hash: passwordHash('Member@123'),
+    role: 'TEAM_MEMBER',
+  });
+
+  const neha = await User.create({
+    name: 'Neha Kulkarni',
+    email: 'neha@groundwork.dev',
+    password_hash: passwordHash('Member@123'),
+    role: 'TEAM_MEMBER',
+  });
+
+  const daniel = await User.create({
+    name: 'Daniel Cho',
+    email: 'daniel@groundwork.dev',
+    password_hash: passwordHash('Member@123'),
+    role: 'TEAM_MEMBER',
+  });
+
+  // 2. Create Projects
+  const websiteProject = await Project.create({
+    name: 'Website redesign',
+    description:
+      'Rebuild the marketing site on the new design system. Fast, clean, responsive, and easy to edit.',
+    manager_id: priya._id,
+    deadline: dateFromNow(18),
+    created_by: aarav._id,
+    members: [priya._id, rohan._id, neha._id, daniel._id],
+  });
+
+  const mobileProject = await Project.create({
+    name: 'Mobile app v2.0',
+    description:
+      'Second major release of the mobile app: offline support, biometric login, and a cleaner task experience.',
+    manager_id: priya._id,
+    deadline: dateFromNow(45),
+    created_by: aarav._id,
+    members: [priya._id, rohan._id, neha._id, daniel._id],
+  });
+
+  const socProject = await Project.create({
+    name: 'SOC 2 readiness',
+    description:
+      'Close the gaps identified in the readiness assessment and get the evidence pack ready for the auditor.',
+    manager_id: marcus._id,
+    deadline: dateFromNow(62),
+    created_by: marcus._id,
+    members: [marcus._id, rohan._id, neha._id, daniel._id],
+  });
+
+  // 3. Create Tasks
+  const task1 = await Task.create({
+    project_id: websiteProject._id,
+    title: 'Audit existing marketing page content',
+    description: 'Catalog current pages, identify outdated screenshots, and note copy changes.',
+    status: 'COMPLETED',
+    priority: 'HIGH',
+    due_date: dateFromNow(-4),
+    assigned_to: neha._id,
+    created_by: priya._id,
+  });
+
+  const task2 = await Task.create({
+    project_id: websiteProject._id,
+    title: 'Design component tokens in Figma',
+    description: 'Publish typography, spacing, and color variables matching the new palette.',
+    status: 'IN_PROGRESS',
+    priority: 'HIGH',
+    due_date: dateFromNow(3),
+    assigned_to: rohan._id,
+    created_by: priya._id,
+  });
+
+  const task3 = await Task.create({
+    project_id: websiteProject._id,
+    title: 'Set up Vite + React frontend boilerplate',
+    description: 'Configure router, layouts, and typography fonts.',
+    status: 'IN_PROGRESS',
+    priority: 'MEDIUM',
+    due_date: dateFromNow(7),
+    assigned_to: daniel._id,
+    created_by: priya._id,
+  });
+
+  const task4 = await Task.create({
+    project_id: websiteProject._id,
+    title: 'Implement responsive navigation header and drawer',
+    description: 'Ensure smooth layout on desktop, tablet, and mobile views.',
+    status: 'TODO',
+    priority: 'MEDIUM',
+    due_date: dateFromNow(12),
+    assigned_to: rohan._id,
+    created_by: priya._id,
+  });
+
+  const task5 = await Task.create({
+    project_id: mobileProject._id,
+    title: 'Research biometric authentication libraries',
+    description: 'Compare React Native FaceID / TouchID plugins across iOS and Android.',
+    status: 'COMPLETED',
+    priority: 'HIGH',
+    due_date: dateFromNow(-1),
+    assigned_to: daniel._id,
+    created_by: priya._id,
+  });
+
+  const task6 = await Task.create({
+    project_id: mobileProject._id,
+    title: 'Build offline storage caching layer',
+    description: 'Cache active project and task data locally using SQLite or MMKV.',
+    status: 'IN_PROGRESS',
+    priority: 'HIGH',
+    due_date: dateFromNow(10),
+    assigned_to: rohan._id,
+    created_by: priya._id,
+  });
+
+  const task7 = await Task.create({
+    project_id: socProject._id,
+    title: 'Review employee access policies and 2FA coverage',
+    description: 'Verify all admin accounts enforce MFA and documented offboarding workflows.',
+    status: 'TODO',
+    priority: 'HIGH',
+    due_date: dateFromNow(14),
+    assigned_to: neha._id,
+    created_by: marcus._id,
+  });
+
+  // 4. Create Comments
+  await Comment.create({
+    task_id: task2._id,
+    user_id: priya._id,
+    body: 'The color palette tokens look fantastic! Moving this into development.',
+  });
+
+  await Comment.create({
+    task_id: task2._id,
+    user_id: rohan._id,
+    body: 'Will have the typography scale finished by this afternoon.',
+  });
+
+  // 5. Create Audit Logs
+  await AuditLog.create({
+    actor_id: aarav._id,
+    action: 'project.created',
+    entity_type: 'project',
+    entity_id: String(websiteProject._id),
+    details: { name: 'Website redesign' },
+  });
+
+  await AuditLog.create({
+    actor_id: priya._id,
+    action: 'task.created',
+    entity_type: 'task',
+    entity_id: String(task2._id),
+    details: { title: 'Design component tokens in Figma' },
+  });
+
+  console.log('✅ Demo data successfully seeded into MongoDB.');
   return true;
 }
 

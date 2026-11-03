@@ -1,36 +1,41 @@
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
+const mongoose = require('mongoose');
 const config = require('../config');
 const { seedDemoData } = require('./seed');
 
-let db;
+let isConnected = false;
 
-function openDatabase() {
-  if (db) return db;
-
-  if (config.dbPath !== ':memory:') {
-    fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
+async function openDatabase() {
+  if (isConnected && mongoose.connection.readyState === 1) {
+    return mongoose.connection;
   }
 
-  db = new Database(config.dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  try {
+    const conn = await mongoose.connect(config.mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    isConnected = true;
+    console.log(`Connected to MongoDB: ${conn.connection.host}/${conn.connection.name}`);
 
-  const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-  db.exec(schema);
+    if (config.seedDemo) {
+      await seedDemoData();
+    }
 
-  if (config.seedDemo) {
-    seedDemoData(db);
+    return conn.connection;
+  } catch (error) {
+    console.error('MongoDB connection error:', error.message);
+    throw error;
   }
-
-  return db;
 }
 
-function closeDatabase() {
-  if (!db) return;
-  db.close();
-  db = undefined;
+async function closeDatabase() {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+    isConnected = false;
+  }
 }
 
-module.exports = { openDatabase, closeDatabase, getDatabase: openDatabase };
+module.exports = {
+  openDatabase,
+  closeDatabase,
+  getDatabase: openDatabase,
+};

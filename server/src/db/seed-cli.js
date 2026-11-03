@@ -1,19 +1,24 @@
-process.env.SEED_DEMO = 'false';
-
 const { openDatabase, closeDatabase } = require('./index');
 const { seedDemoData } = require('./seed');
+const { User } = require('../models');
 
-const db = openDatabase();
-const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
+async function run() {
+  await openDatabase();
+  const userCount = await User.countDocuments();
 
-if (userCount > 0) {
-  console.log('Database already has data. Nothing to seed.');
-  console.log('Delete the database file first if you want a clean demo dataset.');
-} else {
-  seedDemoData(db);
-  console.log('Demo data created.');
-  console.log('Sign in with admin@groundwork.dev / Admin@123');
-  console.log('or priya@groundwork.dev / Manager@123');
+  if (userCount > 0) {
+    console.log('MongoDB already has data. Nothing to seed.');
+  } else {
+    await seedDemoData();
+    console.log('Demo data created.');
+    console.log('Sign in with admin@groundwork.dev / Admin@123');
+    console.log('or priya@groundwork.dev / Manager@123');
+  }
+
+  await closeDatabase();
 }
 
-closeDatabase();
+run().catch((err) => {
+  console.error('Seed error:', err.message);
+  process.exit(1);
+});

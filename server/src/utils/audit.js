@@ -1,14 +1,22 @@
-function recordAudit(db, { actorId, action, entityType, entityId, details }) {
-  db.prepare(`
-    INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, details)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(
-    actorId || null,
-    action,
-    entityType,
-    entityId ?? null,
-    details ? JSON.stringify(details) : null
-  );
+const { AuditLog } = require('../models');
+
+async function recordAudit(firstArg, secondArg) {
+  const options = secondArg || firstArg;
+  if (!options) return;
+
+  const { actorId, action, entityType, entityId, details } = options;
+
+  try {
+    await AuditLog.create({
+      actor_id: actorId || null,
+      action,
+      entity_type: entityType,
+      entity_id: entityId ? String(entityId) : null,
+      details: details || null,
+    });
+  } catch (err) {
+    console.error('Failed to record audit log:', err.message);
+  }
 }
 
 module.exports = { recordAudit };

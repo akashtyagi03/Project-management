@@ -1,31 +1,34 @@
+const { Project, Task, User } = require('../models');
 const { HttpError } = require('./http');
 
-const PROJECT_SELECT = `
-  SELECT p.*, u.name AS manager_name, u.email AS manager_email
-  FROM projects p
-  JOIN users u ON u.id = p.manager_id
-`;
-
-function getProject(db, projectId) {
-  return db.prepare(`${PROJECT_SELECT} WHERE p.id = ?`).get(projectId);
+async function getProject(projectId) {
+  const project = await Project.findById(projectId).populate('manager_id', 'name email role');
+  if (!project) return null;
+  const doc = project.toJSON();
+  return {
+    ...doc,
+    manager_name: project.manager_id ? project.manager_id.name : '',
+    manager_email: project.manager_id ? project.manager_id.email : '',
+  };
 }
 
-function isProjectMember(db, projectId, userId) {
-  return Boolean(
-    db
-      .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
-      .get(projectId, userId)
-  );
+function isProjectMember(project, userId) {
+  if (!project || !userId) return false;
+  const members = project.members || [];
+  const uId = String(userId);
+  return members.some((m) => String(m._id || m) === uId);
 }
 
-function projectAccess(db, project, user) {
+function projectAccess(project, user) {
   if (!project || !user) {
     return { canView: false, canManage: false, isMember: false };
   }
 
+  const uId = String(user.id || user._id);
   const admin = user.role === 'ADMIN';
-  const isManager = project.manager_id === user.id;
-  const isMember = admin || isManager || isProjectMember(db, project.id, user.id);
+  const managerId = String(project.manager_id?._id || project.manager_id || '');
+  const isManager = managerId === uId;
+  const isMember = admin || isManager || isProjectMember(project, uId);
 
   return {
     canView: isMember,
@@ -34,51 +37,62 @@ function projectAccess(db, project, user) {
   };
 }
 
-function requireProject(db, projectId, user) {
-  const project = getProject(db, projectId);
+async function requireProject(projectId, user) {
+  const project = await Project.findById(projectId).populate('manager_id', 'name email role');
   if (!project) throw new HttpError(404, 'Project not found');
 
-  const access = projectAccess(db, project, user);
+  const access = projectAccess(project, user);
   if (!access.canView) throw new HttpError(403, 'You do not have access to this project');
 
-  return { project, ...access };
+  const doc = project.toJSON();
+  return {
+    project: {
+      ...doc,
+      manager_name: project.manager_id ? project.manager_id.name : '',
+      manager_email: project.manager_id ? project.manager_id.email : '',
+    },
+    ...access,
+  };
 }
 
-function requireProjectManager(db, projectId, user) {
-  const result = requireProject(db, projectId, user);
+async function requireProjectManager(projectId, user) {
+  const result = await requireProject(projectId, user);
   if (!result.canManage) {
     throw new HttpError(403, 'Only the project manager or an admin can do that');
   }
   return result;
 }
 
-function getTask(db, taskId) {
-  return db.prepare(`
-    SELECT
-      t.*,
-      p.name AS project_name,
-      p.manager_id AS project_manager_id,
-      a.name AS assignee_name,
-      a.email AS assignee_email,
-      c.name AS creator_name
-    FROM tasks t
-    JOIN projects p ON p.id = t.project_id
-    LEFT JOIN users a ON a.id = t.assigned_to
-    LEFT JOIN users c ON c.id = t.created_by
-    WHERE t.id = ?
-  `).get(taskId);
+async function getTask(taskId) {
+  const task = await Task.findById(taskId)
+    .populate('project_id', 'name manager_id')
+    .populate('assigned_to', 'name email role')
+    .populate('created_by', 'name email');
+
+  if (!task) return null;
+
+  const doc = task.toJSON();
+  return {
+    ...doc,
+    project_name: task.project_id ? task.project_id.name : '',
+    project_manager_id: task.project_id ? String(task.project_id.manager_id) : '',
+    assignee_name: task.assigned_to ? task.assigned_to.name : null,
+    assignee_email: task.assigned_to ? task.assigned_to.email : null,
+    creator_name: task.created_by ? task.created_by.name : null,
+  };
 }
 
-function taskAccess(db, task, user) {
+function taskAccess(task, user) {
   if (!task || !user) {
     return { canView: false, canManage: false, isAssignee: false };
   }
 
+  const uId = String(user.id || user._id);
   const project = { id: task.project_id, manager_id: task.project_manager_id };
-  const access = projectAccess(db, project, user);
-  const isAssignee = task.assigned_to === user.id;
+  const access = projectAccess(project, user);
+  const isAssignee = String(task.assigned_to) === uId;
   const admin = user.role === 'ADMIN';
-  const isProjectManager = task.project_manager_id === user.id;
+  const isProjectManager = String(task.project_manager_id) === uId;
 
   return {
     canView: access.canView || isAssignee,
@@ -87,18 +101,18 @@ function taskAccess(db, task, user) {
   };
 }
 
-function requireTask(db, taskId, user) {
-  const task = getTask(db, taskId);
+async function requireTask(taskId, user) {
+  const task = await getTask(taskId);
   if (!task) throw new HttpError(404, 'Task not found');
 
-  const access = taskAccess(db, task, user);
+  const access = taskAccess(task, user);
   if (!access.canView) throw new HttpError(403, 'You do not have access to this task');
 
   return { task, ...access };
 }
 
-function requireTaskManager(db, taskId, user) {
-  const result = requireTask(db, taskId, user);
+async function requireTaskManager(taskId, user) {
+  const result = await requireTask(taskId, user);
   if (!result.canManage) {
     throw new HttpError(403, 'Only the project manager or an admin can do that');
   }
@@ -106,13 +120,18 @@ function requireTaskManager(db, taskId, user) {
 }
 
 module.exports = {
-  getProject,
-  getTask,
+  getProject: (dbOrId, maybeId) => getProject(maybeId || dbOrId),
+  getTask: (dbOrId, maybeId) => getTask(maybeId || dbOrId),
   projectAccess,
   taskAccess,
-  requireProject,
-  requireProjectManager,
-  requireTask,
-  requireTaskManager,
-  isProjectMember,
+  requireProject: (dbOrId, maybeId, maybeUser) =>
+    maybeUser ? requireProject(maybeId, maybeUser) : requireProject(dbOrId, maybeId),
+  requireProjectManager: (dbOrId, maybeId, maybeUser) =>
+    maybeUser ? requireProjectManager(maybeId, maybeUser) : requireProjectManager(dbOrId, maybeId),
+  requireTask: (dbOrId, maybeId, maybeUser) =>
+    maybeUser ? requireTask(maybeId, maybeUser) : requireTask(dbOrId, maybeId),
+  requireTaskManager: (dbOrId, maybeId, maybeUser) =>
+    maybeUser ? requireTaskManager(maybeId, maybeUser) : requireTaskManager(dbOrId, maybeId),
+  isProjectMember: (dbOrProj, projOrUser, maybeUser) =>
+    maybeUser ? isProjectMember(projOrUser, maybeUser) : isProjectMember(dbOrProj, projOrUser),
 };

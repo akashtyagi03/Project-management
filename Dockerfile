@@ -1,9 +1,5 @@
 FROM node:20-bookworm-slim AS build
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -19,7 +15,6 @@ FROM node:20-bookworm-slim AS runtime
 
 ENV NODE_ENV=production \
     PORT=4000 \
-    DB_PATH=/app/data/groundwork.db \
     UPLOADS_DIR=/app/uploads
 
 WORKDIR /app
@@ -31,8 +26,8 @@ COPY --from=build /app/server ./server
 COPY --from=build /app/client/dist ./client/dist
 COPY --from=build /app/docs ./docs
 
-RUN mkdir -p /app/data /app/uploads \
-  && chown -R node:node /app/data /app/uploads
+RUN mkdir -p /app/uploads \
+  && chown -R node:node /app/uploads
 
 USER node
 

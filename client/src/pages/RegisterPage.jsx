@@ -59,16 +59,12 @@ export default function RegisterPage() {
           <Logo light />
         </div>
         <div className="auth-aside__copy">
-          <span className="auth-kicker">Start with clarity</span>
           <h1>A shared view of everything that matters.</h1>
           <p>
             Bring projects, deadlines, and people together before the next status meeting.
           </p>
         </div>
         <AuthPreview />
-        <p className="auth-aside__footnote">
-          No standups required to know where things stand.
-        </p>
       </aside>
 
       <main className="auth-main">
@@ -97,7 +93,7 @@ export default function RegisterPage() {
                 type="text"
                 value={form.name}
                 onChange={update('name')}
-                placeholder="Sam Rivera"
+                placeholder="Enter Your Name"
                 autoComplete="name"
                 autoFocus
                 maxLength={80}
@@ -110,7 +106,7 @@ export default function RegisterPage() {
                 type="email"
                 value={form.email}
                 onChange={update('email')}
-                placeholder="you@company.com"
+                placeholder="Enter Email"
                 autoComplete="email"
               />
             </label>
@@ -122,7 +118,7 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={update('password')}
-                  placeholder="At least 8 characters"
+                  placeholder="Enter password"
                   autoComplete="new-password"
                 />
                 <button
@@ -146,11 +142,6 @@ export default function RegisterPage() {
               />
             </label>
 
-            <p className="form-hint">
-              On a brand-new workspace, the first account becomes the admin. After that, an
-              admin can update roles.
-            </p>
-
             <button
               type="submit"
               className="button button--primary button--full"
@@ -165,8 +156,6 @@ export default function RegisterPage() {
             Already have an account? <Link to="/login">Sign in</Link>
           </p>
         </div>
-
-        <p className="auth-legal">Groundwork · Demo project workspace</p>
       </main>
     </div>
   );

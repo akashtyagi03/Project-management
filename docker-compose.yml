@@ -8,11 +8,12 @@ services:
       PORT: 4000
       JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-before-deploying}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:4000}
-      DB_PATH: /app/data/groundwork.db
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/project_management}
       UPLOADS_DIR: /app/uploads
       SEED_DEMO: ${SEED_DEMO:-true}
+    depends_on:
+      - mongo
     volumes:
-      - groundwork-data:/app/data
       - groundwork-uploads:/app/uploads
     healthcheck:
       test:
@@ -25,9 +26,17 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7-jammy
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
     restart: unless-stopped
 
 volumes:
-  groundwork-data:
+  mongo-data:
   groundwork-uploads:

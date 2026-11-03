@@ -1,16 +1,16 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
-const { getDatabase } = require('../db');
+const { User } = require('../models');
 const { HttpError } = require('../utils/http');
 
 function signToken(user) {
-  return jwt.sign({ sub: String(user.id) }, config.jwtSecret, {
+  return jwt.sign({ sub: String(user.id || user._id) }, config.jwtSecret, {
     expiresIn: config.jwtExpiresIn,
     issuer: 'groundwork',
   });
 }
 
-function authenticate(req, _res, next) {
+async function authenticate(req, _res, next) {
   const header = req.headers.authorization || '';
   const [scheme, token] = header.split(' ');
 
@@ -20,13 +20,16 @@ function authenticate(req, _res, next) {
 
   try {
     const payload = jwt.verify(token, config.jwtSecret, { issuer: 'groundwork' });
-    const user = getDatabase()
-      .prepare('SELECT id, name, email, role FROM users WHERE id = ?')
-      .get(payload.sub);
+    const user = await User.findById(payload.sub).select('-password_hash');
 
     if (!user) return next(new HttpError(401, 'Your session is no longer valid'));
 
-    req.user = user;
+    req.user = {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
     return next();
   } catch (error) {
     return next(new HttpError(401, 'Your session has expired. Please sign in again.'));

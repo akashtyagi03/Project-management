@@ -1,9 +1,8 @@
 const express = require('express');
-const { getDatabase } = require('../db');
+const { Project, Task, User, Attachment, Comment } = require('../models');
 const { authenticate } = require('../middleware/auth');
 const { asyncHandler, HttpError, pagination, paginationMeta } = require('../utils/http');
 const {
-  getProject,
   requireProject,
   requireProjectManager,
   isProjectMember,
@@ -15,15 +14,12 @@ const validate = require('../utils/validate');
 const router = express.Router();
 router.use(authenticate);
 
-function accessibleClause(user) {
-  if (user.role === 'ADMIN') return '1 = 1';
-  return `(
-    p.manager_id = @userId
-    OR EXISTS (
-      SELECT 1 FROM project_members pm
-      WHERE pm.project_id = p.id AND pm.user_id = @userId
-    )
-  )`;
+function accessibleFilter(user) {
+  if (user.role === 'ADMIN') return {};
+  const userId = user.id || user._id;
+  return {
+    $or: [{ manager_id: userId }, { members: userId }],
+  };
 }
 
 function serializeProject(project) {
@@ -34,49 +30,76 @@ function serializeProject(project) {
     ...project,
     task_count: taskCount,
     completed_tasks: completed,
-    member_count: Number(project.member_count || 0),
+    member_count: Number(project.member_count || (project.members ? project.members.length : 0)),
     progress: taskCount === 0 ? 0 : Math.round((completed / taskCount) * 100),
   };
 }
 
-function projectDetails(db, projectId) {
-  const project = getProject(db, projectId);
+async function projectDetails(projectId) {
+  const project = await Project.findById(projectId)
+    .populate('manager_id', 'name email role')
+    .populate('members', 'name email role created_at');
+
   if (!project) return null;
 
-  const members = db
-    .prepare(`
-      SELECT u.id, u.name, u.email, u.role, pm.added_at
-      FROM project_members pm
-      JOIN users u ON u.id = pm.user_id
-      WHERE pm.project_id = ?
-      ORDER BY CASE WHEN u.id = ? THEN 0 ELSE 1 END, u.name COLLATE NOCASE
-    `)
-    .all(projectId, project.manager_id);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const tasks = await Task.find({ project_id: projectId });
 
-  const stats = db
-    .prepare(`
-      SELECT
-        COUNT(*) AS task_count,
-        COALESCE(SUM(status = 'COMPLETED'), 0) AS completed_tasks,
-        COALESCE(SUM(status = 'IN_PROGRESS'), 0) AS in_progress_tasks,
-        COALESCE(SUM(status = 'TODO'), 0) AS todo_tasks,
-        COALESCE(SUM(status != 'COMPLETED' AND due_date < date('now')), 0) AS overdue_tasks
-      FROM tasks
-      WHERE project_id = ?
-    `)
-    .get(projectId);
+  const taskCount = tasks.length;
+  let completed = 0;
+  let inProgress = 0;
+  let todo = 0;
+  let overdue = 0;
+
+  for (const t of tasks) {
+    if (t.status === 'COMPLETED') completed++;
+    else if (t.status === 'IN_PROGRESS') inProgress++;
+    else if (t.status === 'TODO') todo++;
+
+    if (t.status !== 'COMPLETED' && t.due_date && t.due_date < todayStr) {
+      overdue++;
+    }
+  }
+
+  const membersList = (project.members || []).map((u) => ({
+    id: String(u._id),
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    added_at: u.created_at || project.created_at,
+  }));
+
+  // Sort manager first, then alphabetical
+  const managerIdStr = String(project.manager_id?._id || project.manager_id);
+  membersList.sort((a, b) => {
+    if (a.id === managerIdStr) return -1;
+    if (b.id === managerIdStr) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return {
-    ...serializeProject({ ...project, ...stats, member_count: members.length }),
-    members,
+    id: String(project._id),
+    name: project.name,
+    description: project.description,
+    manager_id: managerIdStr,
+    manager_name: project.manager_id ? project.manager_id.name : '',
+    manager_email: project.manager_id ? project.manager_id.email : '',
+    deadline: project.deadline,
+    created_at: project.created_at,
+    updated_at: project.updated_at,
+    task_count: taskCount,
+    completed_tasks: completed,
+    in_progress_tasks: inProgress,
+    todo_tasks: todo,
+    overdue_tasks: overdue,
+    member_count: membersList.length,
+    progress: taskCount === 0 ? 0 : Math.round((completed / taskCount) * 100),
+    members: membersList,
   };
 }
 
-function ensureManager(db, managerId) {
-  const manager = db
-    .prepare('SELECT id, name, email, role FROM users WHERE id = ?')
-    .get(managerId);
-
+async function ensureManager(managerId) {
+  const manager = await User.findById(managerId);
   if (!manager) throw new HttpError(400, 'Project manager not found');
   if (!['PROJECT_MANAGER', 'ADMIN'].includes(manager.role)) {
     throw new HttpError(400, 'A project manager must have the Project Manager or Admin role');
@@ -84,75 +107,89 @@ function ensureManager(db, managerId) {
   return manager;
 }
 
-router.get('/', (req, res) => {
-  const db = getDatabase();
-  const { page, limit, offset } = pagination(req.query, 9);
-  const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
-  const scope = req.query.scope || 'all';
-  const sort = req.query.sort || 'deadline';
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { page, limit, offset } = pagination(req.query, 9);
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+    const scope = req.query.scope || 'all';
+    const sort = req.query.sort || 'deadline';
 
-  if (!['all', 'managed', 'member'].includes(scope)) {
-    throw new HttpError(400, 'Scope must be all, managed, or member');
-  }
-  if (!['deadline', 'recent', 'name'].includes(sort)) {
-    throw new HttpError(400, 'Sort must be deadline, recent, or name');
-  }
+    if (!['all', 'managed', 'member'].includes(scope)) {
+      throw new HttpError(400, 'Scope must be all, managed, or member');
+    }
+    if (!['deadline', 'recent', 'name'].includes(sort)) {
+      throw new HttpError(400, 'Sort must be deadline, recent, or name');
+    }
 
-  const conditions = [accessibleClause(req.user)];
-  const params = { userId: req.user.id, limit, offset };
+    const filter = accessibleFilter(req.user);
 
-  if (q) {
-    conditions.push('(p.name LIKE @search OR p.description LIKE @search)');
-    params.search = `%${q}%`;
-  }
+    if (q) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { name: { $regex: q, $options: 'i' } },
+          { description: { $regex: q, $options: 'i' } },
+        ],
+      });
+    }
 
-  if (scope === 'managed') {
-    conditions.push('p.manager_id = @userId');
-  } else if (scope === 'member') {
-    conditions.push(`
-      p.manager_id != @userId
-      AND EXISTS (
-        SELECT 1 FROM project_members scoped_pm
-        WHERE scoped_pm.project_id = p.id AND scoped_pm.user_id = @userId
-      )
-    `);
-  }
+    const userId = req.user.id;
+    if (scope === 'managed') {
+      filter.manager_id = userId;
+    } else if (scope === 'member') {
+      filter.manager_id = { $ne: userId };
+      filter.members = userId;
+    }
 
-  const orderBy =
-    sort === 'name'
-      ? 'p.name COLLATE NOCASE ASC'
-      : sort === 'recent'
-        ? 'p.updated_at DESC'
-        : 'CASE WHEN p.deadline IS NULL THEN 1 ELSE 0 END, p.deadline ASC';
+    let sortOptions = {};
+    if (sort === 'name') {
+      sortOptions = { name: 1 };
+    } else if (sort === 'recent') {
+      sortOptions = { updated_at: -1 };
+    } else {
+      sortOptions = { deadline: 1 };
+    }
 
-  const where = `WHERE ${conditions.join(' AND ')}`;
+    const total = await Project.countDocuments(filter);
+    const projects = await Project.find(filter)
+      .populate('manager_id', 'name email')
+      .sort(sortOptions)
+      .skip(offset)
+      .limit(limit);
 
-  const projects = db
-    .prepare(`
-      SELECT
-        p.*,
-        u.name AS manager_name,
-        u.email AS manager_email,
-        (SELECT COUNT(*) FROM project_members pmc WHERE pmc.project_id = p.id) AS member_count,
-        (SELECT COUNT(*) FROM tasks tc WHERE tc.project_id = p.id) AS task_count,
-        (SELECT COUNT(*) FROM tasks tc WHERE tc.project_id = p.id AND tc.status = 'COMPLETED') AS completed_tasks
-      FROM projects p
-      JOIN users u ON u.id = p.manager_id
-      ${where}
-      ORDER BY ${orderBy}
-      LIMIT @limit OFFSET @offset
-    `)
-    .all(params);
+    // Populate task counts for each project
+    const projectSummaries = await Promise.all(
+      projects.map(async (p) => {
+        const taskCount = await Task.countDocuments({ project_id: p._id });
+        const completedTasks = await Task.countDocuments({
+          project_id: p._id,
+          status: 'COMPLETED',
+        });
 
-  const total = db
-    .prepare(`SELECT COUNT(*) AS count FROM projects p ${where}`)
-    .get(params).count;
+        return serializeProject({
+          id: String(p._id),
+          name: p.name,
+          description: p.description,
+          manager_id: String(p.manager_id?._id || p.manager_id),
+          manager_name: p.manager_id ? p.manager_id.name : '',
+          manager_email: p.manager_id ? p.manager_id.email : '',
+          deadline: p.deadline,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+          member_count: p.members ? p.members.length : 0,
+          task_count: taskCount,
+          completed_tasks: completedTasks,
+        });
+      })
+    );
 
-  res.json({
-    data: projects.map(serializeProject),
-    meta: paginationMeta(page, limit, total),
-  });
-});
+    res.json({
+      data: projectSummaries,
+      meta: paginationMeta(page, limit, total),
+    });
+  })
+);
 
 router.post(
   '/',
@@ -161,7 +198,6 @@ router.post(
       throw new HttpError(403, 'Only admins and project managers can create projects');
     }
 
-    const db = getDatabase();
     const name = validate.text(req.body.name, 'Project name', { min: 2, max: 120 });
     const description =
       validate.text(req.body.description, 'Description', {
@@ -176,216 +212,210 @@ router.post(
     } else if (
       req.user.role === 'PROJECT_MANAGER' &&
       req.body.managerId &&
-      Number(req.body.managerId) !== req.user.id
+      String(req.body.managerId) !== String(req.user.id)
     ) {
       throw new HttpError(403, 'Project managers can only manage their own projects');
     }
 
-    ensureManager(db, managerId);
+    await ensureManager(managerId);
 
-    const create = db.transaction(() => {
-      const result = db
-        .prepare(`
-          INSERT INTO projects (name, description, manager_id, deadline, created_by)
-          VALUES (?, ?, ?, ?, ?)
-        `)
-        .run(name, description, managerId, deadline, req.user.id);
-
-      db.prepare(
-        'INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)'
-      ).run(result.lastInsertRowid, managerId);
-
-      return result.lastInsertRowid;
+    const project = await Project.create({
+      name,
+      description,
+      manager_id: managerId,
+      deadline,
+      created_by: req.user.id,
+      members: [managerId],
     });
 
-    const projectId = create();
-
-    recordAudit(db, {
+    recordAudit({
       actorId: req.user.id,
       action: 'project.created',
       entityType: 'project',
-      entityId: projectId,
+      entityId: String(project._id),
       details: { name },
     });
 
-    res.status(201).json({ data: projectDetails(db, projectId) });
+    res.status(201).json({ data: await projectDetails(project._id) });
   })
 );
 
-router.get('/:id', (req, res) => {
-  const db = getDatabase();
-  const projectId = validate.id(req.params.id, 'Project id');
-  const { project } = requireProject(db, projectId, req.user);
-  res.json({ data: projectDetails(db, project.id) });
-});
+router.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const projectId = validate.id(req.params.id, 'Project id');
+    await requireProject(projectId, req.user);
+    res.json({ data: await projectDetails(projectId) });
+  })
+);
 
-router.patch('/:id', (req, res) => {
-  const db = getDatabase();
-  const projectId = validate.id(req.params.id, 'Project id');
-  const { project } = requireProjectManager(db, projectId, req.user);
+router.patch(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const projectId = validate.id(req.params.id, 'Project id');
+    const { project } = await requireProjectManager(projectId, req.user);
 
-  if (req.body.managerId !== undefined && req.user.role !== 'ADMIN') {
-    throw new HttpError(403, 'Only an admin can reassign a project manager');
-  }
-
-  const name =
-    req.body.name !== undefined
-      ? validate.text(req.body.name, 'Project name', { min: 2, max: 120 })
-      : project.name;
-  const description =
-    req.body.description !== undefined
-      ? validate.text(req.body.description, 'Description', {
-          max: 5000,
-          optional: true,
-        }) || ''
-      : project.description;
-  const deadline =
-    req.body.deadline !== undefined
-      ? validate.date(req.body.deadline, 'Deadline')
-      : project.deadline;
-
-  let managerId = project.manager_id;
-  if (req.body.managerId !== undefined) {
-    managerId = validate.id(req.body.managerId, 'Project manager');
-    ensureManager(db, managerId);
-  }
-
-  const update = db.transaction(() => {
-    db.prepare(`
-      UPDATE projects
-      SET name = ?, description = ?, deadline = ?, manager_id = ?,
-          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `).run(name, description, deadline, managerId, project.id);
-
-    if (managerId !== project.manager_id) {
-      db.prepare(
-        'INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)'
-      ).run(project.id, managerId);
+    if (req.body.managerId !== undefined && req.user.role !== 'ADMIN') {
+      throw new HttpError(403, 'Only an admin can reassign a project manager');
     }
-  });
 
-  update();
+    const name =
+      req.body.name !== undefined
+        ? validate.text(req.body.name, 'Project name', { min: 2, max: 120 })
+        : project.name;
+    const description =
+      req.body.description !== undefined
+        ? validate.text(req.body.description, 'Description', {
+            max: 5000,
+            optional: true,
+          }) || ''
+        : project.description;
+    const deadline =
+      req.body.deadline !== undefined
+        ? validate.date(req.body.deadline, 'Deadline')
+        : project.deadline;
 
-  const changed = ['name', 'description', 'deadline', 'managerId'].filter(
-    (field) => req.body[field] !== undefined
-  );
+    let managerId = project.manager_id;
+    if (req.body.managerId !== undefined) {
+      managerId = validate.id(req.body.managerId, 'Project manager');
+      await ensureManager(managerId);
+    }
 
-  recordAudit(db, {
-    actorId: req.user.id,
-    action: 'project.updated',
-    entityType: 'project',
-    entityId: project.id,
-    details: { name, fields: changed },
-  });
+    const dbProject = await Project.findById(projectId);
+    dbProject.name = name;
+    dbProject.description = description;
+    dbProject.deadline = deadline;
+    dbProject.manager_id = managerId;
 
-  res.json({ data: projectDetails(db, project.id) });
-});
+    if (!dbProject.members.some((m) => String(m) === String(managerId))) {
+      dbProject.members.push(managerId);
+    }
 
-router.delete('/:id', (req, res) => {
-  const db = getDatabase();
-  const projectId = validate.id(req.params.id, 'Project id');
-  const { project } = requireProjectManager(db, projectId, req.user);
+    await dbProject.save();
 
-  const files = db
-    .prepare(`
-      SELECT a.stored_name
-      FROM attachments a
-      JOIN tasks t ON t.id = a.task_id
-      WHERE t.project_id = ?
-    `)
-    .all(project.id);
+    const changed = ['name', 'description', 'deadline', 'managerId'].filter(
+      (field) => req.body[field] !== undefined
+    );
 
-  db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
-  files.forEach((file) => removeUpload(file.stored_name));
+    recordAudit({
+      actorId: req.user.id,
+      action: 'project.updated',
+      entityType: 'project',
+      entityId: String(project.id),
+      details: { name, fields: changed },
+    });
 
-  recordAudit(db, {
-    actorId: req.user.id,
-    action: 'project.deleted',
-    entityType: 'project',
-    entityId: project.id,
-    details: { name: project.name },
-  });
+    res.json({ data: await projectDetails(project.id) });
+  })
+);
 
-  res.status(204).end();
-});
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const projectId = validate.id(req.params.id, 'Project id');
+    const { project } = await requireProjectManager(projectId, req.user);
 
-router.post('/:id/members', (req, res) => {
-  const db = getDatabase();
-  const projectId = validate.id(req.params.id, 'Project id');
-  const { project } = requireProjectManager(db, projectId, req.user);
-  const userId = validate.id(req.body.userId, 'Team member');
+    // Find and delete all task attachments on disk
+    const tasks = await Task.find({ project_id: projectId });
+    const taskIds = tasks.map((t) => t._id);
 
-  const user = db
-    .prepare('SELECT id, name, email, role FROM users WHERE id = ?')
-    .get(userId);
+    const attachments = await Attachment.find({ task_id: { $in: taskIds } });
+    attachments.forEach((file) => removeUpload(file.stored_name));
 
-  if (!user) throw new HttpError(404, 'User not found');
-  if (isProjectMember(db, project.id, user.id)) {
-    throw new HttpError(409, 'That person is already on the project');
-  }
+    await Attachment.deleteMany({ task_id: { $in: taskIds } });
+    await Comment.deleteMany({ task_id: { $in: taskIds } });
+    await Task.deleteMany({ project_id: projectId });
+    await Project.findByIdAndDelete(projectId);
 
-  db.prepare(
-    'INSERT INTO project_members (project_id, user_id) VALUES (?, ?)'
-  ).run(project.id, user.id);
+    recordAudit({
+      actorId: req.user.id,
+      action: 'project.deleted',
+      entityType: 'project',
+      entityId: String(project.id),
+      details: { name: project.name },
+    });
 
-  recordAudit(db, {
-    actorId: req.user.id,
-    action: 'member.added',
-    entityType: 'project',
-    entityId: project.id,
-    details: { name: user.name, userId: user.id },
-  });
+    res.status(204).end();
+  })
+);
 
-  res.status(201).json({
-    data: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
-  });
-});
+router.post(
+  '/:id/members',
+  asyncHandler(async (req, res) => {
+    const projectId = validate.id(req.params.id, 'Project id');
+    await requireProjectManager(projectId, req.user);
+    const userId = validate.id(req.body.userId, 'Team member');
 
-router.delete('/:id/members/:userId', (req, res) => {
-  const db = getDatabase();
-  const projectId = validate.id(req.params.id, 'Project id');
-  const userId = validate.id(req.params.userId, 'User id');
-  const { project } = requireProjectManager(db, projectId, req.user);
+    const user = await User.findById(userId);
+    if (!user) throw new HttpError(404, 'User not found');
 
-  if (userId === project.manager_id) {
-    throw new HttpError(400, 'The project manager cannot be removed from the team');
-  }
+    const project = await Project.findById(projectId);
+    if (project.members.some((m) => String(m) === String(userId))) {
+      throw new HttpError(409, 'That person is already on the project');
+    }
 
-  const user = db.prepare('SELECT id, name FROM users WHERE id = ?').get(userId);
-  if (!user || !isProjectMember(db, project.id, userId)) {
-    throw new HttpError(404, 'That person is not on this project');
-  }
+    project.members.push(userId);
+    await project.save();
 
-  const openTasks = db
-    .prepare(`
-      SELECT COUNT(*) AS count FROM tasks
-      WHERE project_id = ? AND assigned_to = ? AND status != 'COMPLETED'
-    `)
-    .get(project.id, userId).count;
+    recordAudit({
+      actorId: req.user.id,
+      action: 'member.added',
+      entityType: 'project',
+      entityId: String(project._id),
+      details: { name: user.name, userId: String(user._id) },
+    });
 
-  if (openTasks > 0) {
-    throw new HttpError(400, 'Reassign this person’s open tasks before removing them');
-  }
+    res.status(201).json({
+      data: {
+        id: String(user._id),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  })
+);
 
-  db.prepare(
-    'DELETE FROM project_members WHERE project_id = ? AND user_id = ?'
-  ).run(project.id, userId);
+router.delete(
+  '/:id/members/:userId',
+  asyncHandler(async (req, res) => {
+    const projectId = validate.id(req.params.id, 'Project id');
+    const userId = validate.id(req.params.userId, 'User id');
+    const { project } = await requireProjectManager(projectId, req.user);
 
-  recordAudit(db, {
-    actorId: req.user.id,
-    action: 'member.removed',
-    entityType: 'project',
-    entityId: project.id,
-    details: { name: user.name, userId: user.id },
-  });
+    if (String(userId) === String(project.manager_id)) {
+      throw new HttpError(400, 'The project manager cannot be removed from the team');
+    }
 
-  res.status(204).end();
-});
+    const user = await User.findById(userId);
+    const dbProject = await Project.findById(projectId);
+    if (!user || !dbProject.members.some((m) => String(m) === String(userId))) {
+      throw new HttpError(404, 'That person is not on this project');
+    }
+
+    const openTasks = await Task.countDocuments({
+      project_id: projectId,
+      assigned_to: userId,
+      status: { $ne: 'COMPLETED' },
+    });
+
+    if (openTasks > 0) {
+      throw new HttpError(400, 'Reassign this person’s open tasks before removing them');
+    }
+
+    dbProject.members = dbProject.members.filter((m) => String(m) !== String(userId));
+    await dbProject.save();
+
+    recordAudit({
+      actorId: req.user.id,
+      action: 'member.removed',
+      entityType: 'project',
+      entityId: String(project.id),
+      details: { name: user.name, userId: String(user._id) },
+    });
+
+    res.status(204).end();
+  })
+);
 
 module.exports = router;

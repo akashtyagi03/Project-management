@@ -46,7 +46,7 @@ A full-stack web application built to help organizations manage projects, teams,
 
 - **Frontend**: React 19, Vite, React Router, Lucide Icons, CSS
 - **Backend**: Node.js, Express
-- **Database**: SQLite (via `better-sqlite3`)
+- **Database**: MongoDB (via `mongoose`)
 - **Authentication**: JWT & `bcryptjs`
 - **File Uploads**: `multer`
 
@@ -57,6 +57,7 @@ A full-stack web application built to help organizations manage projects, teams,
 ### Prerequisites
 - Node.js (v20 or higher)
 - npm
+- MongoDB (local MongoDB service or MongoDB Atlas cluster connection string)
 
 ### Installation & Setup
 
@@ -74,6 +75,7 @@ A full-stack web application built to help organizations manage projects, teams,
    ```bash
    cp .env.example .env
    ```
+   Open `.env` and set your `MONGODB_URI` (e.g. `mongodb://127.0.0.1:27017/project_management` or your MongoDB Atlas URI).
 
 4. **Start the application**:
    ```bash
@@ -83,7 +85,7 @@ A full-stack web application built to help organizations manage projects, teams,
    - **Frontend**: [http://localhost:5173](http://localhost:5173)
    - **Backend API**: [http://localhost:4000](http://localhost:4000)
 
-> Note: On initial startup, the database is automatically created with sample demo data in `server/data/groundwork.db`.
+> Note: On initial startup, demo data is automatically seeded into your MongoDB database if it is empty.
 
 ---
 

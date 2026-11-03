@@ -69,12 +69,13 @@ function date(value, field, { optional = true } = {}) {
   return value;
 }
 
+const mongoose = require('mongoose');
+
 function id(value, field) {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  if (!value || typeof value !== 'string' || !mongoose.Types.ObjectId.isValid(value)) {
     throw new HttpError(400, `${field} must be a valid id`);
   }
-  return parsed;
+  return value;
 }
 
 function optionalId(value, field) {
