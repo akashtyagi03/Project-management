@@ -10,6 +10,8 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
 async function request(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   const headers = { ...(options.headers || {}) };
@@ -24,7 +26,7 @@ async function request(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(`${API_BASE}/api${path}`, {
       method: options.method || 'GET',
       headers,
       body,

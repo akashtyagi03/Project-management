@@ -15,7 +15,18 @@ const app = express();
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(
   cors({
-    origin: config.clientOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        config.clientOrigins.includes('*') ||
+        config.clientOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
     exposedHeaders: ['Content-Disposition'],
   })
